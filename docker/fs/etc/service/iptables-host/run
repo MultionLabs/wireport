@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Wait a moment for network interfaces to be ready
+sleep 4
+
+sysctl -w net.ipv4.ip_forward=1
+sysctl -p
+
+iptables -A FORWARD -i wg0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth1 -o wg0 -j ACCEPT
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE # from wg0 to eth1
+# iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE # from eth1 to wg0
+
+# Keep the service running
+exec tail -f /dev/null

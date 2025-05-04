@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# Wait a moment for network interfaces to be ready
+sleep 4
+
+sysctl -w net.ipv4.ip_forward=1
+iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o eth1 -j MASQUERADE
+
+# Keep the service running
+exec tail -f /dev/null
