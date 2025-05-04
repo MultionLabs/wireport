@@ -28,8 +28,7 @@ wireport is a self-hosted VPN tunnel that securely exposes private Docker servic
 
 Example for distros with ufw (e.g., Ubuntu):
 
-```
-bash
+```bash
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
@@ -42,8 +41,7 @@ ufw status
 
 ### 1.2. Start wireport in host mode
 
-```
-bash
+```bash
 mkdir -p ./fs/app/wireport && \
 docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
     -p 51820:51820/udp -p 80:80/tcp -p 443:443/tcp -p 4060:4060/tcp \
@@ -56,8 +54,7 @@ docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ip
 ### 1.3. Generate a **join-token** for connecting a SERVER-node to the HOST
 
 
-```
-bash
+```bash
 docker exec -it wireport-host bash
 # ... then, from inside the contaienr:
 wireport server new
@@ -67,8 +64,7 @@ wireport server new
 
 ## 2. SERVER node setup
 
-```
-bash
+```bash
 mkdir -p ./fs/app/wireport && \
 docker run --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
     -v /var/run/docker.sock:/var/run/docker.sock \
@@ -85,8 +81,7 @@ docker run --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf
 
 On the HOST node:
 
-```
-bash
+```bash
 docker exec -it wireport-host bash
 # ... then, from inside the contaienr:
 wireport client new
@@ -98,15 +93,13 @@ wireport client new
 
 For an already-running container:
 
-```
-bash
+```bash
 docker network connect wgp-net <CONTAINER-NAME>
 ```
 
 When launching a new docker service:
 
-```
-bash
+```bash
 docker run --network=wgp-net ... <PARAMS>
 ```
 
