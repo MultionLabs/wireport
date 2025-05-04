@@ -1,0 +1,12 @@
+**/wireport.db
+**/wireport.db-journal
+**/wireport.db-lock
+**/wireport.db-trace
+**/wireport.db-wal
+**/wireport.db-shm
+
+**/.env
+**/.env.*
+
+**/.git
+

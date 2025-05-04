@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# Bring up the WireGuard interface
+wg-quick up wg0
+
+# Monitor the status of the WireGuard interface (wg0)
+while ip link show wg0 | grep -q "state"; do
+    # Wait for 5 seconds and check again
+    sleep 5
+done

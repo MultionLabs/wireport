@@ -1,0 +1,8 @@
+# avoid caching DNS requests
+cache-size=0
+# DNSes of server nodes
+{{#each (ipsToStrings WGConfig.Interface.DNS false)}}
+server={{this}}
+{{/each}}
+listen-address=127.0.0.1
+listen-address={{ipToString WGConfig.Interface.Address}}
