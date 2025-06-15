@@ -111,7 +111,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		err = terminal.RestartServices()
+		err = terminal.RestartServices(false, false, true)
 
 		if err != nil {
 			cmd.Printf("Error restarting services: %v\n", err)
@@ -156,7 +156,7 @@ var UnpublishServiceCmd = &cobra.Command{
 				return
 			}
 
-			err = terminal.RestartServices()
+			err = terminal.RestartServices(false, false, true)
 
 			if err != nil {
 				cmd.Printf("Error restarting services: %v\n", err)
