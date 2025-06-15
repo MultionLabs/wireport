@@ -17,6 +17,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// In 172.16.0.0/12 range, we can use networks from 172.16.0.0 to 172.31.0.0
+// That's 16 possible networks (16-31 in the second octet); we only use 20-31
+const (
+	startNetwork = 20
+	endNetwork   = 31
+)
+
 type Repository struct {
 	db *gorm.DB
 }
@@ -248,7 +255,7 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 	return node, nil
 }
 
-func (r *Repository) CreateServer() (*types.Node, error) {
+func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, error) {
 	var serverInterfaceWGPrivateKey, serverInterfaceWGPublicKey, err = wg.GenerateKeyPair()
 
 	if err != nil {
@@ -279,7 +286,21 @@ func (r *Repository) CreateServer() (*types.Node, error) {
 			},
 		}
 
-		dockerSubnet, err := r.GetNextAssignableDockerSubnet()
+		var dockerSubnet *types.IPNetMarshable
+
+		if forceDockerSubnetStr != nil {
+			dockerSubnet, err = types.ParseIPNetMarshable(*forceDockerSubnetStr, true)
+
+			if err != nil {
+				return err
+			}
+
+			if !r.IsDockerSubnetAvailable(dockerSubnet) {
+				return errors.New("docker subnet already in use")
+			}
+		} else {
+			dockerSubnet, err = r.GetNextAssignableDockerSubnet()
+		}
 
 		if err != nil {
 			return err
@@ -427,6 +448,18 @@ func (r *Repository) GetByID(id string) (*types.Node, error) {
 	return &node, nil
 }
 
+func (r *Repository) GetCurrentNode() (*types.Node, error) {
+	var node types.Node
+
+	result := r.db.First(&node, "is_current_node = ?", true)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &node, nil
+}
+
 func (r *Repository) GetHostNode() (*types.Node, error) {
 	var hostNode types.Node
 
@@ -442,6 +475,36 @@ func (r *Repository) GetHostNode() (*types.Node, error) {
 	return &hostNode, nil
 }
 
+func (r *Repository) IsDockerSubnetAvailable(dockerSubnet *types.IPNetMarshable) bool {
+	var nodes []types.Node
+
+	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleHost)
+
+	if result.Error != nil {
+		return false
+	}
+
+	for _, node := range nodes {
+		if node.DockerSubnet != nil && node.DockerSubnet.String() == dockerSubnet.String() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *Repository) TotalAndAvailableDockerSubnets() (int, int, error) {
+	var nodes []types.Node
+
+	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleHost)
+
+	if result.Error != nil {
+		return 0, 0, result.Error
+	}
+
+	return len(nodes), (endNetwork - startNetwork + 1) - len(nodes), nil
+}
+
 func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, error) {
 	var nodes []types.Node
 
@@ -451,20 +514,35 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 		return nil, result.Error
 	}
 
-	inc := len(nodes)
+	for networkNum := startNetwork; networkNum <= endNetwork; networkNum++ {
+		ip := net.ParseIP(fmt.Sprintf("172.%d.0.0", networkNum))
 
-	ip := net.ParseIP(fmt.Sprintf("172.%d.0.0", 20+inc))
+		if ip == nil {
+			return nil, errors.New("failed to parse ip")
+		}
 
-	if ip == nil {
-		return nil, errors.New("failed to parse ip")
+		proposedSubnet := &types.IPNetMarshable{
+			IPNet: net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(16, 32),
+			},
+		}
+
+		// Check if this subnet is already in use
+		subnetExists := false
+		for _, node := range nodes {
+			if node.DockerSubnet != nil && node.DockerSubnet.String() == proposedSubnet.String() {
+				subnetExists = true
+				break
+			}
+		}
+
+		if !subnetExists {
+			return proposedSubnet, nil
+		}
 	}
 
-	return &types.IPNetMarshable{
-		IPNet: net.IPNet{
-			IP:   ip,
-			Mask: net.CIDRMask(16, 32),
-		},
-	}, nil
+	return nil, errors.New("no available docker subnets found in 172.16.0.0/12 range")
 }
 
 func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16) (*types.Node, error) {
@@ -483,9 +561,26 @@ func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort u
 			logger.Error("Failed to create host node: %v", err)
 			return nil, err
 		}
+	} else {
+		err := docker_utils.EnsureDockerNetworkExistsAndAttached(hostNode.DockerSubnet)
+
+		if err != nil {
+			logger.Error("Failed to ensure docker network exists and is attached to the container: %v", err)
+			return nil, err
+		}
 	}
 
 	return hostNode, nil
+}
+
+func (r *Repository) SaveNode(node *types.Node) error {
+	result := r.db.Save(node)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
 }
 
 func (r *Repository) IsCurrentNodeHost() bool {

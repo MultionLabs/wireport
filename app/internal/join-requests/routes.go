@@ -90,7 +90,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 			switch joinRequestFromDB.Role {
 			case node_types.NodeRoleServer:
-				serverNode, err := nodes_repository.CreateServer()
+				serverNode, err := nodes_repository.CreateServer(decryptedJoinRequest.DockerSubnet)
 
 				if err != nil {
 					logger.Error("[%s] Failed to create server node: %v", r.Method, err)
@@ -108,7 +108,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				publicServices := public_services_repository.GetAll()
 
-				err = hostNode.SaveConfigs(publicServices)
+				err = hostNode.SaveConfigs(publicServices, false)
 
 				if err != nil {
 					logger.Error("[%s] Failed to save host configs: %v", r.Method, err)
@@ -122,18 +122,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					logger.Error("[%s] Failed to restart services: %v", r.Method, err)
 				}
 
-				wireguardConfig, _ := serverNode.GetFormattedWireguardConfig()
-				resolvConfig, _ := serverNode.GetFormattedResolvConfig()
-				coreDNSConfig, _ := serverNode.GetFormattedCoreDNSConfig()
-
-				dockerSubnet := serverNode.DockerSubnet.String()
-
-				responsePayload.JoinConfigs = &join_requests_types.JoinConfigs{
-					WireguardConfig: wireguardConfig,
-					ResolvConfig:    resolvConfig,
-					CoreDNSConfig:   coreDNSConfig,
-					DockerSubnet:    &dockerSubnet,
-				}
+				responsePayload.NodeConfig = serverNode
 			default:
 				logger.Error("[%s] Invalid join request role: %v", r.Method, joinRequestFromDB.Role)
 				http.Error(w, "", http.StatusBadRequest)

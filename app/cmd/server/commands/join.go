@@ -2,12 +2,12 @@ package commands
 
 import (
 	"encoding/json"
-	"os"
 
 	"wireport/cmd/server/config"
 	docker_utils "wireport/internal/docker-utils"
 	"wireport/internal/logger"
 	"wireport/internal/nodes/types"
+	public_services "wireport/internal/public-services"
 
 	"github.com/spf13/cobra"
 )
@@ -43,56 +43,44 @@ var JoinCmd = &cobra.Command{
 
 		logger.Info("Join response: %s", responseJSON)
 
-		if response.JoinConfigs.DockerSubnet == nil {
-			logger.Fatal("Docker subnet is required to join the network")
-			return
-		}
+		currentNode := response.NodeConfig
 
-		dockerSubnet, err := types.ParseIPNetMarshable(*response.JoinConfigs.DockerSubnet)
+		if currentNode != nil {
+			logger.Info("Saving node config to database")
 
-		if err != nil {
-			logger.Fatal("Failed to parse docker subnet: %v", err)
-			return
-		}
-
-		err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
-
-		if err != nil {
-			logger.Fatal("Failed to ensure docker network %s with subnet %s exists and is attached: %v", config.Config.DockerNetworkName, *response.JoinConfigs.DockerSubnet, err)
-			return
-		}
-
-		if response.JoinConfigs.WireguardConfig == nil || response.JoinConfigs.CoreDNSConfig == nil {
-			logger.Fatal("Wireguard and CoreDNS configs are required to join the network")
-			return
-		}
-
-		logger.Info("Writing wireguard config to %s", config.Config.WireguardConfigPath)
-		err = os.WriteFile(config.Config.WireguardConfigPath, []byte(*response.JoinConfigs.WireguardConfig), 0644)
-
-		if err != nil {
-			logger.Fatal("Failed to write wireguard config: %v", err)
-			return
-		}
-
-		if response.JoinConfigs.CoreDNSConfig != nil {
-			logger.Info("Writing coredns config to %s", config.Config.CoreDNSConfigPath)
-			err = os.WriteFile(config.Config.CoreDNSConfigPath, []byte(*response.JoinConfigs.CoreDNSConfig), 0644)
+			dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
 
 			if err != nil {
-				logger.Fatal("Failed to write coredns config: %v", err)
+				logger.Fatal("Failed to parse docker subnet: %v", err)
 				return
 			}
-		}
 
-		if response.JoinConfigs.ResolvConfig != nil {
-			logger.Info("Writing resolv config to %s", config.Config.ResolvConfigPath)
-			err = os.WriteFile(config.Config.ResolvConfigPath, []byte(*response.JoinConfigs.ResolvConfig), 0644)
+			err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
 
 			if err != nil {
-				logger.Fatal("Failed to write resolv config: %v", err)
+				logger.Fatal("Failed to ensure docker network %s with subnet %s exists and is attached: %v", config.Config.DockerNetworkName, dockerSubnet.String(), err)
 				return
 			}
+
+			currentNode.IsCurrentNode = true
+
+			err = nodes_repository.SaveNode(currentNode)
+
+			if err != nil {
+				logger.Fatal("Failed to save node config: %v", err)
+				return
+			}
+
+			publicServices := []*public_services.PublicService{}
+
+			err = currentNode.SaveConfigs(publicServices, true)
+
+			if err != nil {
+				logger.Fatal("Failed to save node configs: %v", err)
+				return
+			}
+
+			logger.Info("Successfully saved node config to the database")
 		}
 
 		logger.Info("Successfully joined the network")

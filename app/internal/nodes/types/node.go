@@ -243,7 +243,7 @@ func (n *Node) GetFormattedCoreDNSConfig() (*string, error) {
 	return &configContents, nil
 }
 
-func (n *Node) SaveConfigs(publicServices []*public_services.PublicService) error {
+func (n *Node) SaveConfigs(publicServices []*public_services.PublicService, configsMustExist bool) error {
 	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
 		return errors.New("config saving is only relevant to host and server nodes")
 	}
@@ -264,6 +264,10 @@ func (n *Node) SaveConfigs(publicServices []*public_services.PublicService) erro
 			logger.Fatal("Failed to get formatted coreDNS config: %v", err)
 			return err
 		}
+	} else {
+		if configsMustExist {
+			return errors.New("coreDNS can't be empty")
+		}
 	}
 
 	if resolvConfig != nil {
@@ -274,9 +278,13 @@ func (n *Node) SaveConfigs(publicServices []*public_services.PublicService) erro
 			logger.Fatal("Failed to get formatted resolv config: %v", err)
 			return err
 		}
+	} else {
+		if configsMustExist {
+			return errors.New("resolv can't be empty")
+		}
 	}
 
-	if n.Role == NodeRoleHost {
+	if n.Role == NodeRoleHost || n.Role == NodeRoleServer {
 		if wireguardConfig != nil {
 			logger.Info("Writing wireguard config to %s", config.Config.WireguardConfigPath)
 			err := os.WriteFile(config.Config.WireguardConfigPath, []byte(*wireguardConfig), 0644)
@@ -285,15 +293,25 @@ func (n *Node) SaveConfigs(publicServices []*public_services.PublicService) erro
 				logger.Fatal("Failed to get formatted wireguard config: %v", err)
 				return err
 			}
+		} else {
+			if configsMustExist {
+				return errors.New("wireguard can't be empty")
+			}
 		}
 
-		if caddyConfig != nil {
-			logger.Info("Writing caddy config to %s", config.Config.CaddyConfigPath)
-			err := os.WriteFile(config.Config.CaddyConfigPath, []byte(*caddyConfig), 0644)
+		if n.Role == NodeRoleHost {
+			if caddyConfig != nil {
+				logger.Info("Writing caddy config to %s", config.Config.CaddyConfigPath)
+				err := os.WriteFile(config.Config.CaddyConfigPath, []byte(*caddyConfig), 0644)
 
-			if err != nil {
-				logger.Fatal("Failed to get formatted caddy config: %v", err)
-				return err
+				if err != nil {
+					logger.Fatal("Failed to get formatted caddy config: %v", err)
+					return err
+				}
+			} else {
+				if configsMustExist {
+					return errors.New("caddy can't be empty")
+				}
 			}
 		}
 	}
