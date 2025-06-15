@@ -1,10 +1,27 @@
+# caddy build stage
 FROM caddy:2.10.0-builder AS caddy-builder
 
 # build a custom caddy image with the l4 plugin
 RUN xcaddy build \
     --with github.com/mholt/caddy-l4@87e3e5e2c7f986b34c0df373a5799670d7b8ca03
 
-# Go build stage
+
+# CoreDNS build stage
+FROM golang:1.24-alpine AS coredns-builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+# Clone and build CoreDNS with fanout plugin
+RUN git clone https://github.com/coredns/coredns.git && \
+    cd coredns && \
+    git checkout v1.12.1 && \
+    echo "fanout:github.com/networkservicemesh/fanout" >> plugin.cfg && \
+    make
+
+# wireport build stage
 FROM golang:1.24-alpine AS go-builder
 
 WORKDIR /app
@@ -19,28 +36,29 @@ ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 COPY ./app/ .
 RUN go build -o wireport ./cmd/server/main.go
 
-# wireguard, dnsmasq & other tools
+# wireguard, tcpdump & other tools
 FROM alpine:3.21
 
 RUN apk add --no-cache -U \
     wireguard-tools \
     iptables \
     nano \
-    dnsmasq \
     bind-tools \
     tcpdump \
     runit \
     docker
 
 COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
+COPY --from=coredns-builder /app/coredns/coredns /usr/bin/coredns
 COPY --from=go-builder /app/wireport /usr/bin/wireport
 
 VOLUME /etc/caddy
 VOLUME /caddy
 VOLUME /app/wireport
+VOLUME /data
 
 COPY ./docker/fs/etc/service /etc/service
-RUN mkdir -p /etc/caddy && mkdir -p /etc/service-disabled
+RUN mkdir -p /etc/caddy && mkdir -p /etc/coredns && mkdir -p /etc/service-disabled
 
 COPY ./docker/fs/entry.sh /
 RUN chmod +x /entry.sh

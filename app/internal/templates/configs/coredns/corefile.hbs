@@ -1,0 +1,24 @@
+. {
+    loop
+    
+    {{#equal Role "host"}}
+    fanout . {{ipsToDNS WGConfig.Interface.DNS "127.0.0.11" ","}} 8.8.8.8 1.1.1.1 {
+        policy sequential
+        timeout 1s
+        attempt-count 1
+        network udp
+    }
+    {{/equal}}
+
+    {{#equal Role "server"}}
+    forward . 127.0.0.11
+    {{/equal}}
+
+    cache {
+        success 4096 20
+        denial  1024 5
+        prefetch 512
+    }
+
+    log
+}

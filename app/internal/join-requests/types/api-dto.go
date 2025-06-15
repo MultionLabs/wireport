@@ -3,7 +3,7 @@ package types
 type JoinConfigs struct {
 	WireguardConfig *string `json:"wireguardConfig"`
 	ResolvConfig    *string `json:"resolvConfig"`
-	DnsmasqConfig   *string `json:"dnsmasqConfig"`
+	CoreDNSConfig   *string `json:"coreDNSConfig"`
 	DockerSubnet    *string `json:"dockerSubnet"`
 }
 

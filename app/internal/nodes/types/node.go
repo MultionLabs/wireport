@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"wireport/cmd/server/config"
 	"wireport/internal/logger"
+	public_services "wireport/internal/public-services"
 	templates "wireport/internal/templates"
 
 	"github.com/aymerick/raymond"
@@ -20,6 +22,23 @@ func init() {
 
 	raymond.RegisterHelper("ipsToStrings", func(ipnets []IPNetMarshable, includeMask bool) []string {
 		return MapIPNetMarshablesToStrings(ipnets, includeMask)
+	})
+
+	raymond.RegisterHelper("ipsToDNS", func(ipnets []IPNetMarshable, ignoreIps, separator string) string {
+		stringifiedIps := MapIPNetMarshablesToStrings(ipnets, false)
+		ignoredIps := strings.Split(ignoreIps, separator)
+
+		finalIps := []string{}
+
+		for _, ip := range stringifiedIps {
+			if slices.Contains(ignoredIps, ip) {
+				continue
+			}
+
+			finalIps = append(finalIps, ip)
+		}
+
+		return strings.Join(finalIps, " ")
 	})
 
 	raymond.RegisterHelper("ipToString", func(ipnet IPNetMarshable) string {
@@ -35,6 +54,10 @@ func init() {
 
 		return parts[n-1]
 	})
+
+	raymond.RegisterHelper("replace", func(input string, old string, new string) string {
+		return strings.Replace(input, old, new, -1)
+	})
 }
 
 type NodeRole string
@@ -49,6 +72,8 @@ const (
 type Node struct {
 	ID   string   `gorm:"type:text;primary_key"`
 	Role NodeRole `gorm:"type:text;not null"`
+
+	IsCurrentNode bool `gorm:"type:boolean;not null;default:false"`
 
 	WGPrivateKey string `gorm:"type:text;not null"`
 	WGPublicKey  string `gorm:"type:text;not null"`
@@ -125,35 +150,9 @@ func (n *Node) GetFormattedWireguardConfig() (*string, error) {
 	return output, nil
 }
 
-func (n *Node) GetFormattedDNSMasqConfig() (*string, error) {
-	if n.Role == NodeRoleClient {
-		return nil, errors.New("client nodes do not need a DNSMasq config")
-	}
-
-	template, err := templates.Configs.ReadFile(config.Config.DNSMasqConfigTemplatePath)
-
-	if err != nil {
-		return nil, err
-	}
-
-	tpl, err := raymond.Parse(string(template))
-
-	if err != nil {
-		return nil, err
-	}
-
-	configContents, err := tpl.Exec(n)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &configContents, nil
-}
-
 func (n *Node) GetFormattedResolvConfig() (*string, error) {
-	if n.Role != NodeRoleHost {
-		return nil, errors.New("only host nodes can have a resolv config")
+	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
+		return nil, errors.New("only host and server nodes can have a resolv config")
 	}
 
 	template, err := templates.Configs.ReadFile(config.Config.ResolvConfigTemplatePath)
@@ -177,12 +176,53 @@ func (n *Node) GetFormattedResolvConfig() (*string, error) {
 	return &configContents, nil
 }
 
-func (n *Node) GetFormattedCaddyConfig() (*string, error) {
+func (n *Node) GetFormattedCaddyConfig(publicServices []*public_services.PublicService) (*string, error) {
 	if n.Role != NodeRoleHost {
 		return nil, errors.New("only host nodes can have a Caddy config")
 	}
 
 	template, err := templates.Configs.ReadFile(config.Config.CaddyConfigTemplatePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	tpl, err := raymond.Parse(string(template))
+
+	if err != nil {
+		return nil, err
+	}
+
+	layer4PublicServices := []*public_services.PublicService{}
+	layer7PublicServices := []*public_services.PublicService{}
+
+	for _, service := range publicServices {
+		if service.PublicProtocol == "tcp" || service.PublicProtocol == "udp" {
+			layer4PublicServices = append(layer4PublicServices, service)
+		} else {
+			layer7PublicServices = append(layer7PublicServices, service)
+		}
+	}
+
+	configContents, err := tpl.Exec(map[string]interface{}{
+		"Node":                 n,
+		"Layer4PublicServices": layer4PublicServices,
+		"Layer7PublicServices": layer7PublicServices,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &configContents, nil
+}
+
+func (n *Node) GetFormattedCoreDNSConfig() (*string, error) {
+	if n.Role == NodeRoleClient {
+		return nil, errors.New("client nodes do not need a CoreDNS config")
+	}
+
+	template, err := templates.Configs.ReadFile(config.Config.CoreDNSConfigTemplatePath)
 
 	if err != nil {
 		return nil, err
@@ -203,27 +243,35 @@ func (n *Node) GetFormattedCaddyConfig() (*string, error) {
 	return &configContents, nil
 }
 
-func (n *Node) SaveConfigs() error {
+func (n *Node) SaveConfigs(publicServices []*public_services.PublicService) error {
 	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
 		return errors.New("config saving is only relevant to host and server nodes")
 	}
 
 	wireguardConfig, _ := n.GetFormattedWireguardConfig()
 
-	dnsMasqConfig, _ := n.GetFormattedDNSMasqConfig()
-
 	resolvConfig, _ := n.GetFormattedResolvConfig()
 
-	caddyConfig, _ := n.GetFormattedCaddyConfig()
+	caddyConfig, _ := n.GetFormattedCaddyConfig(publicServices)
 
-	if dnsMasqConfig != nil {
-		// update is needed for both host and server nodes
+	coreDNSConfig, _ := n.GetFormattedCoreDNSConfig()
 
-		logger.Info("Writing dnsmasq config to %s", config.Config.DNSMasqConfigPath)
-		err := os.WriteFile(config.Config.DNSMasqConfigPath, []byte(*dnsMasqConfig), 0644)
+	if coreDNSConfig != nil {
+		logger.Info("Writing coreDNS config to %s", config.Config.CoreDNSConfigPath)
+		err := os.WriteFile(config.Config.CoreDNSConfigPath, []byte(*coreDNSConfig), 0644)
 
 		if err != nil {
-			logger.Fatal("Failed to get formatted dnsmasq config: %v", err)
+			logger.Fatal("Failed to get formatted coreDNS config: %v", err)
+			return err
+		}
+	}
+
+	if resolvConfig != nil {
+		logger.Info("Writing resolv config to %s", config.Config.ResolvConfigPath)
+		err := os.WriteFile(config.Config.ResolvConfigPath, []byte(*resolvConfig), 0644)
+
+		if err != nil {
+			logger.Fatal("Failed to get formatted resolv config: %v", err)
 			return err
 		}
 	}
@@ -235,16 +283,6 @@ func (n *Node) SaveConfigs() error {
 
 			if err != nil {
 				logger.Fatal("Failed to get formatted wireguard config: %v", err)
-				return err
-			}
-		}
-
-		if resolvConfig != nil {
-			logger.Info("Writing resolv config to %s", config.Config.ResolvConfigPath)
-			err := os.WriteFile(config.Config.ResolvConfigPath, []byte(*resolvConfig), 0644)
-
-			if err != nil {
-				logger.Fatal("Failed to get formatted resolv config: %v", err)
 				return err
 			}
 		}

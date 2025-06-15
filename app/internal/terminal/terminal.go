@@ -55,13 +55,13 @@ func RestartServices() error {
 		}
 	}
 
-	if _, err := os.Stat(config.Config.DNSMasqConfigPath); !os.IsNotExist(err) {
-		err = exec.Command("/bin/sh", "-c", config.Config.DNSMasqRestartCommand).Run()
+	if _, err := os.Stat(config.Config.CoreDNSConfigPath); !os.IsNotExist(err) {
+		err = exec.Command("/bin/sh", "-c", config.Config.CoreDNSRestartCommand).Run()
 
 		if err != nil {
-			return fmt.Errorf("failed to restart dnsmasq: %v", err)
+			return fmt.Errorf("failed to restart coredns: %v", err)
 		} else {
-			logger.Info("DNSMasq restarted")
+			logger.Info("CoreDNS restarted")
 		}
 	}
 

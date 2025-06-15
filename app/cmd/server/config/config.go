@@ -39,19 +39,19 @@ type Configuration struct {
 
 	WireguardConfigPath string
 	ResolvConfigPath    string
-	DNSMasqConfigPath   string
 	CaddyConfigPath     string
+	CoreDNSConfigPath   string
 
 	ResolvConfigTemplatePath  string
-	DNSMasqConfigTemplatePath string
 	CaddyConfigTemplatePath   string
+	CoreDNSConfigTemplatePath string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
 
 	WireguardRestartCommand string
-	DNSMasqRestartCommand   string
 	CaddyRestartCommand     string
+	CoreDNSRestartCommand   string
 }
 
 var DatabasePath = GetEnv("DATABASE_PATH", "/app/wireport/wireport.db")
@@ -63,17 +63,17 @@ var Config *Configuration = &Configuration{
 
 	WireguardConfigPath: GetEnv("WIREGUARD_CONFIG_PATH", "/etc/wireguard/wg0.conf"),
 	ResolvConfigPath:    GetEnv("RESOLV_CONFIG_PATH", "/etc/resolv.conf"),
-	DNSMasqConfigPath:   GetEnv("DNSMASQ_CONFIG_PATH", "/etc/dnsmasq.conf"),
 	CaddyConfigPath:     GetEnv("CADDY_CONFIG_PATH", "/etc/caddy/Caddyfile"),
+	CoreDNSConfigPath:   GetEnv("COREDNS_CONFIG_PATH", "/etc/coredns/Corefile"),
 
 	ResolvConfigTemplatePath:  "configs/resolv/resolv.hbs",
-	DNSMasqConfigTemplatePath: "configs/dnsmasq/dnsmasq.hbs",
 	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
+	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
 
 	DockerNetworkName:   "wgp-net",
 	DockerNetworkDriver: "bridge",
 
 	WireguardRestartCommand: "/usr/bin/wg-quick down wg0 && /usr/bin/wg-quick up wg0",
-	DNSMasqRestartCommand:   "/bin/kill -HUP $(pidof dnsmasq)",
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
+	CoreDNSRestartCommand:   "/bin/kill -HUP $(pidof coredns)",
 }

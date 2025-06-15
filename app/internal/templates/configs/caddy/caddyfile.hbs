@@ -1,15 +1,17 @@
+# layer 4
+
 {
     layer4 {
-        {{#each (split WGConfig.Interface.DNS ",")}}
-        # 0.0.0.0:<port> {
-        #    route {
-        #        proxy {
-                    # proxy service upstreams here, e.g.
-                    # upstream udp/10.0.0.3:10123
-                    # more: https://github.com/mholt/caddy-l4
-        #        }
-        #    }
-        #}
+        # more: https://github.com/mholt/caddy-l4
+        
+        {{#each Layer4PublicServices}}
+            {{this.AsCaddyConfigEntry}}
         {{/each}}
     }
 }
+
+# layer 7
+
+{{#each Layer7PublicServices}}
+    {{this.AsCaddyConfigEntry}}
+{{/each}}

@@ -21,6 +21,7 @@ fi
 docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
     -p 51820:51820/udp -p 80:80/tcp -p 443:443/tcp -p 4060:4060/tcp \
     -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ./fs/data:/data \
     -v ./fs/app/wireport:/app/wireport \
     --name wireport-host \
     anybotsllc/wireport host

@@ -21,3 +21,6 @@
 **/.vscode/extensions/.*
 **/.vscode/extensions/
 
+**/wg0.conf
+**/resolv.conf
+**/Caddyfile

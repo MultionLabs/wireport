@@ -8,6 +8,7 @@ import (
 	"wireport/internal/logger"
 	nodes "wireport/internal/nodes"
 	node_types "wireport/internal/nodes/types"
+	public_services "wireport/internal/public-services"
 	"wireport/internal/terminal"
 
 	"gorm.io/gorm"
@@ -16,6 +17,7 @@ import (
 func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	nodes_repository := nodes.NewRepository(db)
 	join_requests_repository := NewRepository(db)
+	public_services_repository := public_services.NewRepository(db)
 
 	mux.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("[%s] Join request from %s", r.Method, r.RemoteAddr)
@@ -104,7 +106,9 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				err = hostNode.SaveConfigs()
+				publicServices := public_services_repository.GetAll()
+
+				err = hostNode.SaveConfigs(publicServices)
 
 				if err != nil {
 					logger.Error("[%s] Failed to save host configs: %v", r.Method, err)
@@ -120,14 +124,14 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				wireguardConfig, _ := serverNode.GetFormattedWireguardConfig()
 				resolvConfig, _ := serverNode.GetFormattedResolvConfig()
-				dnsMasqConfig, _ := serverNode.GetFormattedDNSMasqConfig()
+				coreDNSConfig, _ := serverNode.GetFormattedCoreDNSConfig()
 
 				dockerSubnet := serverNode.DockerSubnet.String()
 
 				responsePayload.JoinConfigs = &join_requests_types.JoinConfigs{
 					WireguardConfig: wireguardConfig,
 					ResolvConfig:    resolvConfig,
-					DnsmasqConfig:   dnsMasqConfig,
+					CoreDNSConfig:   coreDNSConfig,
 					DockerSubnet:    &dockerSubnet,
 				}
 			default:

@@ -213,9 +213,10 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 				},
 				Peers: hostPeers, // refreshed in updateNodes
 			},
-			WGPublicIp:   &hostWGPublicIp,
-			WGPublicPort: &WGPublicPort,
-			DockerSubnet: dockerSubnet,
+			WGPublicIp:    &hostWGPublicIp,
+			WGPublicPort:  &WGPublicPort,
+			DockerSubnet:  dockerSubnet,
+			IsCurrentNode: true, // only create on host node
 		}
 
 		result := tx.Create(node)
@@ -485,4 +486,16 @@ func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort u
 	}
 
 	return hostNode, nil
+}
+
+func (r *Repository) IsCurrentNodeHost() bool {
+	var node types.Node
+
+	result := r.db.First(&node, "is_current_node = ?", true)
+
+	if result.Error != nil {
+		return false
+	}
+
+	return node.Role == types.NodeRoleHost
 }
