@@ -11,7 +11,7 @@ type IPNetMarshable struct {
 	net.IPNet
 }
 
-func ParseIPNetMarshable(s string) (*IPNetMarshable, error) {
+func ParseIPNetMarshable(s string, maskMustBeSpecified bool) (*IPNetMarshable, error) {
 	if s == "" {
 		return nil, errors.New("invalid IP network format, expected 'IP/CIDR'")
 	}
@@ -29,17 +29,21 @@ func ParseIPNetMarshable(s string) (*IPNetMarshable, error) {
 	}
 
 	if len(parts) == 1 {
+		if maskMustBeSpecified {
+			return nil, errors.New("network mask must be specified")
+		}
+
 		return &IPNetMarshable{IPNet: net.IPNet{IP: ip, Mask: net.CIDRMask(32, 32)}}, nil
 	}
 
 	ones, err := strconv.Atoi(parts[1])
 
 	if err != nil {
-		return nil, errors.New("invalid CIDR value")
+		return nil, errors.New("invalid CIDR value for network mask")
 	}
 
 	if ones < 0 || ones > 32 {
-		return nil, errors.New("CIDR value must be between 0 and 32")
+		return nil, errors.New("CIDR value for network mask must be between 0 and 32")
 	}
 
 	return &IPNetMarshable{IPNet: net.IPNet{IP: ip, Mask: net.CIDRMask(ones, 32)}}, nil
@@ -69,7 +73,7 @@ func MapStringsToIPNetMarshables(strs []string) []IPNetMarshable {
 			continue
 		}
 
-		ipnet, err := ParseIPNetMarshable(s)
+		ipnet, err := ParseIPNetMarshable(s, false)
 
 		if err != nil {
 			continue

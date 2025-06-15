@@ -21,7 +21,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	}
 }
 
-func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable) (*types.JoinRequest, error) {
+func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string) (*types.JoinRequest, error) {
 	encryptionKey, err := encryption.GenerateKey()
 
 	if err != nil {
@@ -36,6 +36,7 @@ func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable) (*types.Join
 		HostAddress:         hostAddress.String(),
 		Role:                nodeTypes.NodeRoleServer,
 		CreatedAt:           time.Now(),
+		DockerSubnet:        dockerSubnet,
 	}
 
 	err = r.db.Create(request).Error
@@ -59,4 +60,14 @@ func (r *Repository) Get(id string) (*types.JoinRequest, error) {
 
 func (r *Repository) Delete(id string) error {
 	return r.db.Delete(&types.JoinRequest{}, "id = ?", id).Error
+}
+
+func (r *Repository) Count() int {
+	var count int64
+
+	if err := r.db.Model(&types.JoinRequest{}).Count(&count).Error; err != nil {
+		return 0
+	}
+
+	return int(count)
 }

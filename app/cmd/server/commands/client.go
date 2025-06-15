@@ -34,7 +34,7 @@ var NewClientCmd = &cobra.Command{
 
 		publicServices := public_services_repository.GetAll()
 
-		err = hostNode.SaveConfigs(publicServices)
+		err = hostNode.SaveConfigs(publicServices, false)
 
 		if err != nil {
 			logger.Fatal("Failed to save host configs: %v", err)

@@ -104,7 +104,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		err = hostNode.SaveConfigs(public_services_repository.GetAll())
+		err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
 
 		if err != nil {
 			cmd.Printf("Error saving host node configs: %v\n", err)
@@ -149,7 +149,7 @@ var UnpublishServiceCmd = &cobra.Command{
 				return
 			}
 
-			err = hostNode.SaveConfigs(public_services_repository.GetAll())
+			err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
 
 			if err != nil {
 				cmd.Printf("Error saving host node configs: %v\n", err)

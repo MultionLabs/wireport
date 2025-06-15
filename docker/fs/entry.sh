@@ -22,10 +22,15 @@ elif [ "$1" = "join" ]; then
 
     # disable some services
     mv /etc/service/caddy /etc/service-disabled/
-    mv /etc/service/wireport /etc/service-disabled/
+    mv /etc/service/wireport-host /etc/service-disabled/
     mv /etc/service/iptables-host /etc/service-disabled/
     
     wireport join "$2"
+elif [ "$1" = "server" ]; then
+    # server
+    echo "> Starting wireport server"
+
+    wireport server start
 else
     echo "Invalid command. Use 'host' or 'join <TOKEN>'."
     exit 1

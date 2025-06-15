@@ -10,6 +10,7 @@ import (
 type JoinRequest struct {
 	Id                  string             `json:"id"`
 	EncryptionKeyBase64 string             `json:"key"`
+	DockerSubnet        *string            `json:"dockerSubnet"`
 	HostAddress         string             `json:"host"`
 	Role                nodeTypes.NodeRole `json:"role"`
 
