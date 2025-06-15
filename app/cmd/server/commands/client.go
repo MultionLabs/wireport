@@ -41,7 +41,7 @@ var NewClientCmd = &cobra.Command{
 			return
 		}
 
-		err = terminal.RestartServices()
+		err = terminal.RestartServices(true, false, false)
 
 		if err != nil {
 			logger.Error("Failed to restart services: %v", err)
