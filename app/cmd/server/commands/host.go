@@ -55,7 +55,9 @@ var StartHostCmd = &cobra.Command{
 			return
 		}
 
-		err = hostNode.SaveConfigs()
+		publicServices := public_services_repository.GetAll()
+
+		err = hostNode.SaveConfigs(publicServices)
 
 		if err != nil {
 			logger.Fatal("Failed to save configs: %v", err)

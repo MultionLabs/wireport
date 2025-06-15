@@ -62,11 +62,12 @@ var JoinCmd = &cobra.Command{
 			return
 		}
 
-		if response.JoinConfigs.WireguardConfig == nil || response.JoinConfigs.DnsmasqConfig == nil {
-			logger.Fatal("Wireguard and Dnsmasq configs are required to join the network")
+		if response.JoinConfigs.WireguardConfig == nil || response.JoinConfigs.CoreDNSConfig == nil {
+			logger.Fatal("Wireguard and CoreDNS configs are required to join the network")
 			return
 		}
 
+		logger.Info("Writing wireguard config to %s", config.Config.WireguardConfigPath)
 		err = os.WriteFile(config.Config.WireguardConfigPath, []byte(*response.JoinConfigs.WireguardConfig), 0644)
 
 		if err != nil {
@@ -74,11 +75,24 @@ var JoinCmd = &cobra.Command{
 			return
 		}
 
-		err = os.WriteFile(config.Config.DNSMasqConfigPath, []byte(*response.JoinConfigs.DnsmasqConfig), 0644)
+		if response.JoinConfigs.CoreDNSConfig != nil {
+			logger.Info("Writing coredns config to %s", config.Config.CoreDNSConfigPath)
+			err = os.WriteFile(config.Config.CoreDNSConfigPath, []byte(*response.JoinConfigs.CoreDNSConfig), 0644)
 
-		if err != nil {
-			logger.Fatal("Failed to write dnsmasq config: %v", err)
-			return
+			if err != nil {
+				logger.Fatal("Failed to write coredns config: %v", err)
+				return
+			}
+		}
+
+		if response.JoinConfigs.ResolvConfig != nil {
+			logger.Info("Writing resolv config to %s", config.Config.ResolvConfigPath)
+			err = os.WriteFile(config.Config.ResolvConfigPath, []byte(*response.JoinConfigs.ResolvConfig), 0644)
+
+			if err != nil {
+				logger.Fatal("Failed to write resolv config: %v", err)
+				return
+			}
 		}
 
 		logger.Info("Successfully joined the network")

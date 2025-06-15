@@ -1,9 +1,12 @@
 package join_requests
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"time"
 	"wireport/internal/encryption"
 	join_requests_types "wireport/internal/join-requests/types"
 )
@@ -13,8 +16,33 @@ type APIService struct {
 }
 
 func NewAPIService() *APIService {
+	var (
+		dnsResolverAddress = "8.8.8.8:53"
+		dnsResolverProto   = "udp"
+		dnsResolverTimeout = time.Duration(5 * time.Second)
+	)
+
+	dialer := &net.Dialer{
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				d := net.Dialer{
+					Timeout: dnsResolverTimeout,
+				}
+
+				return d.DialContext(ctx, dnsResolverProto, dnsResolverAddress)
+			},
+		},
+	}
+
+	transport := &http.Transport{
+		DialContext: dialer.DialContext,
+	}
+
 	return &APIService{
-		client: &http.Client{},
+		client: &http.Client{
+			Transport: transport,
+		},
 	}
 }
 

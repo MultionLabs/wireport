@@ -4,6 +4,7 @@ import (
 	"wireport/cmd/server/config"
 	join_requests_types "wireport/internal/join-requests/types"
 	"wireport/internal/nodes/types"
+	public_services_types "wireport/internal/public-services"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -28,6 +29,12 @@ func InitDB() (*gorm.DB, error) {
 	}
 
 	err = db.AutoMigrate(&join_requests_types.JoinRequest{})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.AutoMigrate(&public_services_types.PublicService{})
 
 	if err != nil {
 		return nil, err

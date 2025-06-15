@@ -32,7 +32,9 @@ var NewClientCmd = &cobra.Command{
 			return
 		}
 
-		err = hostNode.SaveConfigs()
+		publicServices := public_services_repository.GetAll()
+
+		err = hostNode.SaveConfigs(publicServices)
 
 		if err != nil {
 			logger.Fatal("Failed to save host configs: %v", err)
@@ -47,7 +49,7 @@ var NewClientCmd = &cobra.Command{
 
 		wireguardConfig, _ := clientNode.GetFormattedWireguardConfig()
 
-		logger.Info("wireport:\n\nNew client created, use the following wireguard config on your client node to connect to the network:\n\n%s", *wireguardConfig)
+		logger.Info("New client created, use the following wireguard config on your client node to connect to the network:\n\n%s", *wireguardConfig)
 	},
 }
 

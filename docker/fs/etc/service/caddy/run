@@ -1,3 +1,3 @@
 #!/bin/sh
 
-exec /usr/bin/caddy run --config /etc/caddy/Caddyfile
+exec env GODEBUG=netdns=cgo /usr/bin/caddy run --config /etc/caddy/Caddyfile
