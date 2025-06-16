@@ -1,6 +1,28 @@
+<p align="center">
+  <img src="wireport-with-slogan.png" alt="wireport logo" width="300" />
+</p>
+
+<h1 align="center" style="color:#23132d">
+  wireport
+</h1>
+
+<p align="center">
+  <strong>Self-hosted subnet proxy / VPN tunnel that securely exposes private Docker services to the Internet and local environment.</strong><br />
+  Powered by WireGuard, CoreDNS and Caddy
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#security-considerations">Security</a> •
+  <a href="#troubleshooting">Troubleshooting</a>
+</p>
+
+---
+
 # wireport
 
-wireport is a self-hosted VPN tunnel that securely exposes private Docker services to the Internet and local environment. Powered by WireGuard (networking) and Caddy (reverse proxy).
+**wireport** is a self-hosted subnet proxy / VPN tunnel that securely exposes private Docker services to the Internet and local environment. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
 
 - Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
 - Exposing Docker services, running in a local network (e.g., a NAS or a home server), to the Internet
@@ -8,9 +30,10 @@ wireport is a self-hosted VPN tunnel that securely exposes private Docker servic
 ## Features
 
 - Secure VPN tunneling (WireGuard)
+- Automatic service discovery and hostname resolution for Docker containers (CoreDNS)
 - HTTP(-S) and TCP/UDP (Level-4) (reverse-) proxy (Caddy)
 - TLS termination and 100% automated certificate provisioning and renewal
-- Automatic service discovery for Docker containers and easy setup via `wireport` cli
+- Quick and easy setup via `wireport` cli and pre-built Docker-image
 - Self-hosted
 
 ## Prerequisites
