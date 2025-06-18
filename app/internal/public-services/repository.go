@@ -2,19 +2,19 @@ package public_services
 
 import "gorm.io/gorm"
 
-type PublicServiceRepository struct {
+type Repository struct {
 	db *gorm.DB
 }
 
-func NewRepository(db *gorm.DB) *PublicServiceRepository {
-	return &PublicServiceRepository{db: db}
+func NewRepository(db *gorm.DB) *Repository {
+	return &Repository{db: db}
 }
 
-func (r *PublicServiceRepository) Save(service *PublicService) error {
+func (r *Repository) Save(service *PublicService) error {
 	return r.db.Save(service).Error
 }
 
-func (r *PublicServiceRepository) GetAll() []*PublicService {
+func (r *Repository) GetAll() []*PublicService {
 	var services []*PublicService
 
 	if err := r.db.Find(&services).Error; err != nil {
@@ -24,7 +24,7 @@ func (r *PublicServiceRepository) GetAll() []*PublicService {
 	return services
 }
 
-func (r *PublicServiceRepository) Delete(publicProtocol, publicHost string, publicPort uint16) bool {
+func (r *Repository) Delete(publicProtocol, publicHost string, publicPort uint16) bool {
 	result := r.db.Delete(&PublicService{}, "public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort)
 
 	if result.Error != nil {
@@ -34,20 +34,26 @@ func (r *PublicServiceRepository) Delete(publicProtocol, publicHost string, publ
 	return result.RowsAffected > 0
 }
 
-func (r *PublicServiceRepository) Get(publicProtocol, publicHost string, publicPort uint16) (result *PublicService, err error) {
+func (r *Repository) Get(publicProtocol, publicHost string, publicPort uint16) (result *PublicService, err error) {
 	var service PublicService
 
-	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+	err = r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrServiceNotFound
+		}
 		return nil, err
 	}
 
 	return &service, nil
 }
 
-func (r *PublicServiceRepository) AddParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
+func (r *Repository) AddParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
 	var service PublicService
 
-	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+	err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error
+
+	if err != nil {
 		return false
 	}
 
@@ -65,15 +71,16 @@ func (r *PublicServiceRepository) AddParam(publicProtocol, publicHost string, pu
 	return result.Error == nil && result.RowsAffected > 0
 }
 
-func (r *PublicServiceRepository) RemoveParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
+func (r *Repository) RemoveParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
 	var service PublicService
 
-	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+	err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error
+
+	if err != nil {
 		return false
 	}
 
 	newParams := []PublicServiceParam{}
-
 	paramFound := false
 
 	for _, p := range service.Params {

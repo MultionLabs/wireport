@@ -55,11 +55,11 @@ func (r *Repository) updateNodes() error {
 		tx.First(&hostNode, "role = ?", types.NodeRoleHost)
 
 		if hostNode.ID == "" {
-			return errors.New("host node not found")
+			return ErrHostNodeNotFound
 		}
 
 		if hostNode.WGPublicIp == nil || hostNode.WGPublicPort == nil {
-			return errors.New("host node public ip or port not found")
+			return ErrHostNodePublicIPPortNotFound
 		}
 
 		var hostEndpoint = types.UDPAddrMarshable{
@@ -166,7 +166,7 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 
 	if r.db.First(&types.Node{}, "role = ?", types.NodeRoleHost).RowsAffected > 0 {
 		// only one host node is allowed
-		return nil, errors.New("host node already exists")
+		return nil, ErrHostNodeAlreadyExists
 	}
 
 	wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
@@ -556,7 +556,7 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 		ip := net.ParseIP(fmt.Sprintf("172.%d.0.0", networkNum))
 
 		if ip == nil {
-			return nil, errors.New("failed to parse ip")
+			return nil, ErrFailedToParseIP
 		}
 
 		proposedSubnet := &types.IPNetMarshable{
@@ -580,7 +580,7 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 		}
 	}
 
-	return nil, errors.New("no available docker subnets found in 172.16.0.0/12 range")
+	return nil, ErrNoAvailableDockerSubnets
 }
 
 func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) {
@@ -596,7 +596,7 @@ func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) 
 		ip := net.ParseIP(fmt.Sprintf("10.0.0.%d", networkNum))
 
 		if ip == nil {
-			return nil, errors.New("failed to parse ip")
+			return nil, ErrFailedToParseIP
 		}
 
 		proposedIpStr := types.IPToString(ip)
@@ -618,7 +618,7 @@ func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) 
 		}
 	}
 
-	return nil, errors.New("no available wg public ips found in 10.0.0.0/24 range")
+	return nil, ErrNoAvailableWGPrivateIPs
 }
 
 func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16) (*types.Node, error) {
