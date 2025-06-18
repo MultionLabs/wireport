@@ -2,7 +2,18 @@ package public_services
 
 import (
 	"fmt"
+	"strings"
 	"time"
+)
+
+type PublicServiceParam struct {
+	ParamType  PublicServiceParamType `json:"param_type"`
+	ParamValue string                 `json:"param_value"`
+}
+type PublicServiceParamType string
+
+const (
+	PublicServiceParamTypeCaddyFreeText PublicServiceParamType = "caddyFreeTextParam"
 )
 
 type PublicService struct {
@@ -14,30 +25,63 @@ type PublicService struct {
 	PublicHost     string `gorm:"type:text;primaryKey;uniqueIndex:idx_public_service"`    // domain:port
 	PublicPort     uint16 `gorm:"type:integer;primaryKey;uniqueIndex:idx_public_service"` // port
 
+	Params []PublicServiceParam `gorm:"type:text;serializer:json;not null;default:[]"`
+
 	CreatedAt time.Time `gorm:"type:timestamp;not null"`
 	UpdatedAt time.Time `gorm:"type:timestamp;not null"`
 }
 
-func (s *PublicService) AsCaddyConfigEntry() string {
+func formatBlockParams(blockParams []PublicServiceParam, levelSpacesMain int, levelSpacesClosing int) string {
+	if len(blockParams) == 0 {
+		return ""
+	}
+
+	blockParamsList := []string{}
+
+	for _, blockParam := range blockParams {
+		blockParamsList = append(blockParamsList, fmt.Sprintf(strings.Repeat(" ", levelSpacesMain)+"%s", blockParam.ParamValue))
+	}
+
+	return fmt.Sprintf("{\n%s\n%s}", strings.Join(blockParamsList, "\n"), strings.Repeat(" ", levelSpacesClosing))
+}
+
+func (s *PublicService) AsCaddyConfigEntry() (result string, err error) {
+	if (s.LocalProtocol == "udp" && s.PublicProtocol == "tcp") ||
+		(s.LocalProtocol == "tcp" && s.PublicProtocol == "udp") {
+		return "", fmt.Errorf("for layer 4, local protocol and public protocol must be the same (udp -> udp or tcp -> tcp)")
+	}
+
+	result = fmt.Sprintf("# service publication: %s://%s:%d (public) -> %s://%s:%d (local)", s.PublicProtocol, s.PublicHost, s.PublicPort, s.LocalProtocol, s.LocalHost, s.LocalPort)
+
 	if s.PublicProtocol == "https" || s.PublicProtocol == "http" {
-		return fmt.Sprintf(`
-%s://%s {
-    reverse_proxy %s://%s:%d
-}
-		`, s.PublicProtocol, s.PublicHost, s.LocalProtocol, s.LocalHost, s.LocalPort)
-	}
+		publicHostname := fmt.Sprintf("%s://%s", s.PublicProtocol, s.PublicHost)
 
-	if s.PublicProtocol == "udp" || s.PublicProtocol == "tcp" {
-		return fmt.Sprintf(`
-%s:%d {
-    route {
-        proxy {
-            upstream %s/%s:%d
+		if s.PublicProtocol == "https" && s.PublicPort != 443 {
+			publicHostname = fmt.Sprintf("%s:%d", s.PublicHost, s.PublicPort)
+		} else if s.PublicProtocol == "http" && s.PublicPort != 80 {
+			publicHostname = fmt.Sprintf("%s:%d", s.PublicHost, s.PublicPort)
+		}
+
+		reverseProxy := strings.TrimSpace(fmt.Sprintf("reverse_proxy %s://%s:%d %s", s.LocalProtocol, s.LocalHost, s.LocalPort, formatBlockParams(s.Params, 8, 4)))
+
+		result = fmt.Sprintf(`
+%s {
+    %s
+}
+`, publicHostname, reverseProxy)
+	} else if s.PublicProtocol == "udp" || s.PublicProtocol == "tcp" {
+		upstream := strings.TrimSpace(fmt.Sprintf("upstream %s/%s:%d %s", s.LocalProtocol, s.LocalHost, s.LocalPort, formatBlockParams(s.Params, 16, 12)))
+
+		result = fmt.Sprintf(`
+        %s:%d {
+            route {
+                proxy {
+                    %s
+                }
+            }
         }
-    }
-}
-		`, s.PublicHost, s.PublicPort, s.LocalProtocol, s.LocalHost, s.LocalPort)
+`, s.PublicHost, s.PublicPort, upstream)
 	}
 
-	return fmt.Sprintf("# service publication: %s://%s:%d (public) -> %s://%s:%d (local)", s.PublicProtocol, s.PublicHost, s.PublicPort, s.LocalProtocol, s.LocalHost, s.LocalPort)
+	return strings.TrimRight(result, "\t "), nil
 }

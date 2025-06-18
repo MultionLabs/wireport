@@ -33,3 +33,66 @@ func (r *PublicServiceRepository) Delete(publicProtocol, publicHost string, publ
 
 	return result.RowsAffected > 0
 }
+
+func (r *PublicServiceRepository) Get(publicProtocol, publicHost string, publicPort uint16) (result *PublicService, err error) {
+	var service PublicService
+
+	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+		return nil, err
+	}
+
+	return &service, nil
+}
+
+func (r *PublicServiceRepository) AddParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
+	var service PublicService
+
+	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+		return false
+	}
+
+	for _, p := range service.Params {
+		if p.ParamType == paramType && p.ParamValue == paramValue {
+			// param already exists
+			return false
+		}
+	}
+
+	service.Params = append(service.Params, PublicServiceParam{ParamType: paramType, ParamValue: paramValue})
+
+	result := r.db.Save(&service)
+
+	return result.Error == nil && result.RowsAffected > 0
+}
+
+func (r *PublicServiceRepository) RemoveParam(publicProtocol, publicHost string, publicPort uint16, paramType PublicServiceParamType, paramValue string) bool {
+	var service PublicService
+
+	if err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?", publicProtocol, publicHost, publicPort).First(&service).Error; err != nil {
+		return false
+	}
+
+	newParams := []PublicServiceParam{}
+
+	paramFound := false
+
+	for _, p := range service.Params {
+		if p.ParamType == paramType && p.ParamValue == paramValue {
+			paramFound = true
+			continue
+		}
+
+		newParams = append(newParams, p)
+	}
+
+	if !paramFound {
+		// param not found - nothing to remove
+		return false
+	}
+
+	service.Params = newParams
+
+	result := r.db.Save(&service)
+
+	return result.Error == nil && result.RowsAffected > 0
+}

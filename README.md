@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="wireport-with-slogan.png" alt="wireport logo" width="300" />
+  <img src="wireport-with-slogan.png" alt="wireport logo" width="200" />
 </p>
 
 <h1 align="center" style="color:#23132d">

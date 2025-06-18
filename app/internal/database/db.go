@@ -22,19 +22,7 @@ func InitDB() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	err = db.AutoMigrate(&types.Node{})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.AutoMigrate(&join_requests_types.JoinRequest{})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.AutoMigrate(&public_services_types.PublicService{})
+	err = db.AutoMigrate(&types.Node{}, &join_requests_types.JoinRequest{}, &public_services_types.PublicService{})
 
 	if err != nil {
 		return nil, err

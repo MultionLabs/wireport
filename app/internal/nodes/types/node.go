@@ -193,14 +193,26 @@ func (n *Node) GetFormattedCaddyConfig(publicServices []*public_services.PublicS
 		return nil, err
 	}
 
-	layer4PublicServices := []*public_services.PublicService{}
-	layer7PublicServices := []*public_services.PublicService{}
+	layer4PublicServices := []string{}
+	layer7PublicServices := []string{}
 
 	for _, service := range publicServices {
 		if service.PublicProtocol == "tcp" || service.PublicProtocol == "udp" {
-			layer4PublicServices = append(layer4PublicServices, service)
+			entry, err := service.AsCaddyConfigEntry()
+
+			if err != nil {
+				return nil, err
+			}
+
+			layer4PublicServices = append(layer4PublicServices, entry)
 		} else {
-			layer7PublicServices = append(layer7PublicServices, service)
+			entry, err := service.AsCaddyConfigEntry()
+
+			if err != nil {
+				return nil, err
+			}
+
+			layer7PublicServices = append(layer7PublicServices, entry)
 		}
 	}
 

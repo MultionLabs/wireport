@@ -3,15 +3,13 @@
 {
     layer4 {
         # more: https://github.com/mholt/caddy-l4
-        
         {{#each Layer4PublicServices}}
-            {{this.AsCaddyConfigEntry}}
+            {{this}}
         {{/each}}
     }
 }
 
 # layer 7
-
 {{#each Layer7PublicServices}}
-    {{this.AsCaddyConfigEntry}}
+    {{this}}
 {{/each}}
