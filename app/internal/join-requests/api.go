@@ -52,7 +52,7 @@ func (s *APIService) Join(joinToken string) (*join_requests_types.JoinResponseDT
 	err := joinRequest.FromBase64(joinToken)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse join token: %w", err)
+		return nil, ErrFailedToParseJoinToken
 	}
 
 	payload := join_requests_types.JoinRequestDTO{
@@ -62,7 +62,7 @@ func (s *APIService) Join(joinToken string) (*join_requests_types.JoinResponseDT
 	joinResponse, err := encryption.EncryptedAPIRequest[join_requests_types.JoinResponseDTO](s.client, fmt.Sprintf("http://%s/join", joinRequest.HostAddress), payload, joinRequest.Id, joinRequest.EncryptionKeyBase64)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to send join request: %w", err)
+		return nil, ErrFailedToSendJoinRequest
 	}
 
 	return joinResponse, nil
@@ -72,7 +72,7 @@ func (s *APIService) GetPublicIP() (*string, error) {
 	resp, err := s.client.Get("https://ipinfo.io/ip")
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get public IP: %w", err)
+		return nil, ErrFailedToGetPublicIP
 	}
 
 	defer resp.Body.Close()
@@ -80,7 +80,7 @@ func (s *APIService) GetPublicIP() (*string, error) {
 	publicIP, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read public IP response: %w", err)
+		return nil, ErrFailedToReadPublicIP
 	}
 
 	publicIPString := string(publicIP)

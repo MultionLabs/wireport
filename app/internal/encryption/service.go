@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,13 +23,13 @@ func unpad(data []byte) ([]byte, error) {
 	length := len(data)
 
 	if length == 0 {
-		return nil, errors.New("invalid padding size")
+		return nil, ErrInvalidPaddingSize
 	}
 
 	padding := int(data[length-1])
 
 	if padding > length || padding == 0 {
-		return nil, errors.New("invalid padding")
+		return nil, ErrInvalidPadding
 	}
 
 	return data[:length-padding], nil
@@ -40,7 +39,7 @@ func EncryptAES(plainText []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create cipher: %w", err)
 	}
 
 	plainText = pad(plainText, block.BlockSize())
@@ -50,7 +49,7 @@ func EncryptAES(plainText []byte, key []byte) ([]byte, error) {
 
 	// Random IV
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate IV: %w", err)
 	}
 
 	mode := cipher.NewCBCEncrypter(block, iv)
@@ -63,18 +62,18 @@ func DecryptAES(cipherText []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create cipher: %w", err)
 	}
 
 	if len(cipherText) < aes.BlockSize {
-		return nil, errors.New("ciphertext too short")
+		return nil, ErrCiphertextTooShort
 	}
 
 	iv := cipherText[:aes.BlockSize]
 	cipherText = cipherText[aes.BlockSize:]
 
 	if len(cipherText)%aes.BlockSize != 0 {
-		return nil, errors.New("ciphertext is not a multiple of block size")
+		return nil, ErrInvalidBlockSize
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
@@ -90,7 +89,7 @@ func GenerateKey() ([]byte, error) {
 	_, err := rand.Read(key)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generate random key: %w", err)
 	}
 
 	return key, nil
@@ -100,19 +99,19 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	encryptionKey, err := base64.StdEncoding.DecodeString(encryptionKeyBase64)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode encryption key: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeEncryptionKey, err)
 	}
 
 	requestPayloadJSON, err := json.Marshal(payload)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMarshalPayload, err)
 	}
 
 	encryptedRequestPayload, err := EncryptAES(requestPayloadJSON, encryptionKey)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt payload: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEncryptPayload, err)
 	}
 
 	encryptedRequestPayloadBase64 := base64.StdEncoding.EncodeToString(encryptedRequestPayload)
@@ -125,7 +124,7 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	requestBodyJSON, err := json.Marshal(requestBody)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMarshalRequestBody, err)
 	}
 
 	resp, err := client.Post(
@@ -135,7 +134,7 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSendRequest, err)
 	}
 
 	defer resp.Body.Close()
@@ -143,7 +142,7 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	responseBody, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrReadResponse, err)
 	}
 
 	var response EncryptedResponseDTO
@@ -151,19 +150,19 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	err = json.Unmarshal(responseBody, &response)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrUnmarshalResponse, err)
 	}
 
 	encryptedResponsePayloadBytes, err := base64.StdEncoding.DecodeString(response.Payload)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode decrypted response payload: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeResponse, err)
 	}
 
 	decryptedResponsePayloadBytes, err := DecryptAES(encryptedResponsePayloadBytes, encryptionKey)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecryptResponse, err)
 	}
 
 	var decryptedResponsePayload RT
@@ -171,7 +170,7 @@ func EncryptedAPIRequest[RT any](client *http.Client, url string, payload interf
 	err = json.Unmarshal(decryptedResponsePayloadBytes, &decryptedResponsePayload)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal decrypted response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrUnmarshalDecrypted, err)
 	}
 
 	return &decryptedResponsePayload, nil
@@ -181,19 +180,19 @@ func DecryptRequest[RT any](encryptedRequest EncryptedRequestDTO, encryptionKeyB
 	encryptedRequestPayload, err := base64.StdEncoding.DecodeString(encryptedRequest.Payload)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode encrypted request payload: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeResponse, err)
 	}
 
 	encryptionKey, err := base64.StdEncoding.DecodeString(encryptionKeyBase64)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode encryption key: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeEncryptionKey, err)
 	}
 
 	decryptedRequestPayloadJSON, err := DecryptAES(encryptedRequestPayload, encryptionKey)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt request: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecryptResponse, err)
 	}
 
 	var decryptedRequestPayload RT
@@ -201,7 +200,7 @@ func DecryptRequest[RT any](encryptedRequest EncryptedRequestDTO, encryptionKeyB
 	err = json.Unmarshal(decryptedRequestPayloadJSON, &decryptedRequestPayload)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal decrypted request payload: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrUnmarshalDecrypted, err)
 	}
 
 	return &decryptedRequestPayload, nil
@@ -211,19 +210,19 @@ func EncryptResponse(response interface{}, syncID string, encryptionKeyBase64 st
 	encryptionKey, err := base64.StdEncoding.DecodeString(encryptionKeyBase64)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode encryption key: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeEncryptionKey, err)
 	}
 
 	responsePayloadJSON, err := json.Marshal(response)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrMarshalPayload, err)
 	}
 
 	encryptedResponsePayload, err := EncryptAES(responsePayloadJSON, encryptionKey)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEncryptPayload, err)
 	}
 
 	encryptedResponsePayloadBase64 := base64.StdEncoding.EncodeToString(encryptedResponsePayload)

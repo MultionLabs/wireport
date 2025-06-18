@@ -2,7 +2,7 @@ package commands
 
 import (
 	"wireport/internal/logger"
-	"wireport/internal/terminal"
+	network_apps "wireport/internal/network-apps"
 
 	"github.com/spf13/cobra"
 )
@@ -41,7 +41,7 @@ var NewClientCmd = &cobra.Command{
 			return
 		}
 
-		err = terminal.RestartServices(true, false, false)
+		err = network_apps.RestartNetworkApps(true, false, false)
 
 		if err != nil {
 			logger.Error("Failed to restart services: %v", err)
