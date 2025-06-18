@@ -17,11 +17,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// In 172.16.0.0/12 range, we can use networks from 172.16.0.0 to 172.31.0.0
-// That's 16 possible networks (16-31 in the second octet); we only use 20-31
 const (
-	startNetwork = 20
-	endNetwork   = 31
+	// In 172.16.0.0/12 range, we can use networks from 172.16.0.0 to 172.31.0.0
+	// That's 16 possible networks (16-31 in the second octet); we only use 20-31
+	dockerSubnetStart = 20
+	dockerSubnetEnd   = 31
+	// wg node range (10.0.0.0/24)
+	wgPrivateIpStart = 1
+	wgPrivateIpEnd   = 254
 )
 
 type Repository struct {
@@ -166,15 +169,21 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		return nil, errors.New("host node already exists")
 	}
 
+	wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+
+	if err != nil {
+		return nil, err
+	}
+
 	var hostInterfaceAddress = types.IPNetMarshable{
 		IPNet: net.IPNet{
-			IP:   net.ParseIP("10.0.0.1"),
+			IP:   wgPrivateIp.IP,
 			Mask: net.CIDRMask(24, 32),
 		},
 	}
 	var hostInterfacePostUp = "iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE"
 	var hostInterfacePostDown = "iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE"
-	var hostInterfaceWGPrivateKey, hostInterfaceWGPublicKey, err = wg.GenerateKeyPair()
+	hostInterfaceWGPrivateKey, hostInterfaceWGPublicKey, err := wg.GenerateKeyPair()
 
 	if err != nil {
 		return nil, err
@@ -272,16 +281,19 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 			return errors.New("host node not found")
 		}
 
-		var nodeCount int64
-		tx.Model(&types.Node{}).Count(&nodeCount)
-
 		if hostNode.WGPublicIp == nil || hostNode.WGPublicPort == nil {
 			return errors.New("host node public ip or port not found")
 		}
 
+		wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+
+		if err != nil {
+			return err
+		}
+
 		var serverInterfaceAddress = types.IPNetMarshable{
 			IPNet: net.IPNet{
-				IP:   net.ParseIP(fmt.Sprintf("10.0.0.%d", nodeCount+1)),
+				IP:   wgPrivateIp.IP,
 				Mask: net.CIDRMask(24, 32),
 			},
 		}
@@ -369,9 +381,15 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 
 		tx.Find(&allNodes)
 
-		clientNetworkIp := types.IPNetMarshable{
+		wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+
+		if err != nil {
+			return err
+		}
+
+		clientInterfaceAddressIp := types.IPNetMarshable{
 			IPNet: net.IPNet{
-				IP:   net.ParseIP(fmt.Sprintf("10.0.0.%d", len(allNodes)+1)),
+				IP:   wgPrivateIp.IP,
 				Mask: net.CIDRMask(24, 32),
 			},
 		}
@@ -391,7 +409,7 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			WGPublicKey:  clientInterfaceWGPublicKey,
 			WGConfig: types.WGConfig{
 				Interface: types.WGConfigInterface{
-					Address:    clientNetworkIp,
+					Address:    clientInterfaceAddressIp,
 					PrivateKey: clientInterfaceWGPrivateKey,
 					DNS:        []types.IPNetMarshable{}, // refreshed in updateNodes
 				},
@@ -493,6 +511,26 @@ func (r *Repository) IsDockerSubnetAvailable(dockerSubnet *types.IPNetMarshable)
 	return true
 }
 
+func (r *Repository) IsWGPrivateIpAvailable(WGPrivateIp types.IPMarshable) bool {
+	var nodes []types.Node
+
+	result := r.db.Find(&nodes)
+
+	if result.Error != nil {
+		return false
+	}
+
+	wgPrivateIpStr := WGPrivateIp.String()
+
+	for _, node := range nodes {
+		if types.IPToString(node.WGConfig.Interface.Address.IP) == wgPrivateIpStr {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *Repository) TotalAndAvailableDockerSubnets() (int, int, error) {
 	var nodes []types.Node
 
@@ -502,7 +540,7 @@ func (r *Repository) TotalAndAvailableDockerSubnets() (int, int, error) {
 		return 0, 0, result.Error
 	}
 
-	return len(nodes), (endNetwork - startNetwork + 1) - len(nodes), nil
+	return len(nodes), (dockerSubnetEnd - dockerSubnetStart + 1) - len(nodes), nil
 }
 
 func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, error) {
@@ -514,7 +552,7 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 		return nil, result.Error
 	}
 
-	for networkNum := startNetwork; networkNum <= endNetwork; networkNum++ {
+	for networkNum := dockerSubnetStart; networkNum <= dockerSubnetEnd; networkNum++ {
 		ip := net.ParseIP(fmt.Sprintf("172.%d.0.0", networkNum))
 
 		if ip == nil {
@@ -543,6 +581,44 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 	}
 
 	return nil, errors.New("no available docker subnets found in 172.16.0.0/12 range")
+}
+
+func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) {
+	var nodes []types.Node
+
+	result := r.db.Find(&nodes)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	for networkNum := wgPrivateIpStart; networkNum <= wgPrivateIpEnd; networkNum++ {
+		ip := net.ParseIP(fmt.Sprintf("10.0.0.%d", networkNum))
+
+		if ip == nil {
+			return nil, errors.New("failed to parse ip")
+		}
+
+		proposedIpStr := types.IPToString(ip)
+
+		// Check if this ip is already in use
+		ipExists := false
+
+		for _, node := range nodes {
+			if types.IPToString(node.WGConfig.Interface.Address.IP) == proposedIpStr {
+				ipExists = true
+				break
+			}
+		}
+
+		if !ipExists {
+			return &types.IPMarshable{
+				IP: ip,
+			}, nil
+		}
+	}
+
+	return nil, errors.New("no available wg public ips found in 10.0.0.0/24 range")
 }
 
 func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16) (*types.Node, error) {
