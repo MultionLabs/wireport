@@ -75,5 +75,5 @@ var Config *Configuration = &Configuration{
 
 	WireguardRestartCommand: "/usr/bin/wg-quick down wg0 && /usr/bin/wg-quick up wg0",
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
-	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)",
+	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
 }

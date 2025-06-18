@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	network_apps "wireport/internal/network-apps"
 	public_services "wireport/internal/public-services"
-	"wireport/internal/terminal"
 )
 
 var local string
@@ -118,7 +118,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		err = terminal.RestartServices(false, false, true)
+		err = network_apps.RestartNetworkApps(false, false, true)
 
 		if err != nil {
 			cmd.Printf("Error restarting services: %v\n", err)
@@ -163,7 +163,7 @@ var UnpublishServiceCmd = &cobra.Command{
 				return
 			}
 
-			err = terminal.RestartServices(false, false, true)
+			err = network_apps.RestartNetworkApps(false, false, true)
 
 			if err != nil {
 				cmd.Printf("Error restarting services: %v\n", err)
@@ -231,7 +231,7 @@ var NewParamsServiceCmd = &cobra.Command{
 				return
 			}
 
-			err = terminal.RestartServices(false, false, true)
+			err = network_apps.RestartNetworkApps(false, false, true)
 
 			if err != nil {
 				cmd.Printf("Error restarting services: %v\n", err)
@@ -279,7 +279,7 @@ var RemoveParamsServiceCmd = &cobra.Command{
 				return
 			}
 
-			err = terminal.RestartServices(false, false, true)
+			err = network_apps.RestartNetworkApps(false, false, true)
 
 			if err != nil {
 				cmd.Printf("Error restarting services: %v\n", err)

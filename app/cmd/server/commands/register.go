@@ -14,7 +14,7 @@ var (
 	nodes_repository           *nodes.Repository
 	join_requests_repository   *join_requests.Repository
 	join_requests_service      *join_requests.APIService
-	public_services_repository *public_services.PublicServiceRepository
+	public_services_repository *public_services.Repository
 )
 
 func RegisterCommands(rootCmd *cobra.Command, db *gorm.DB) {
