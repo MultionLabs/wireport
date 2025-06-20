@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"wireport/cmd/server/commands"
 	"wireport/cmd/server/config"
 	"wireport/internal/database"
 	"wireport/internal/logger"
+	"wireport/version"
 
 	"github.com/spf13/cobra"
 )
@@ -45,6 +47,7 @@ wireport client new
 
 Done!
 Now you can access the docker-based services from the remote server from your client machine and over the public internet`,
+	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s)", version.Version, version.Commit, version.Date, version.Arch, version.OS),
 }
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"wireport/internal/nodes/types"
 	public_services_types "wireport/internal/public-services"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )

@@ -24,3 +24,5 @@
 **/wg0.conf
 **/resolv.conf
 **/Caddyfile
+
+**/app/bin/*
