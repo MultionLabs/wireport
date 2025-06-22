@@ -10,6 +10,7 @@ import (
 )
 
 var forceClientCreation bool = false
+var quietClientCreation bool = false
 
 var ClientCmd = &cobra.Command{
 	Use:   "client",
@@ -44,7 +45,9 @@ var NewClientCmd = &cobra.Command{
 		}
 
 		if forceClientCreation {
-			cmd.Printf("Force flag detected, creating client node without generating a join request\n")
+			if !quietClientCreation {
+				cmd.Printf("Force flag detected, creating client node without generating a join request\n")
+			}
 
 			clientNode, err := nodes_repository.CreateClient()
 
@@ -53,7 +56,9 @@ var NewClientCmd = &cobra.Command{
 				return
 			}
 
-			cmd.Printf("Client node created without join request\n")
+			if !quietClientCreation {
+				cmd.Printf("Client node created without join request\n")
+			}
 
 			// save configs & restart services
 			publicServices := public_services_repository.GetAll()
@@ -73,7 +78,11 @@ var NewClientCmd = &cobra.Command{
 
 			wireguardConfig, _ := clientNode.GetFormattedWireguardConfig()
 
-			cmd.Printf("New client created, use the following wireguard config on your client node to connect to the network:\n\n%s\n", *wireguardConfig)
+			if !quietClientCreation {
+				cmd.Printf("New client created, use the following wireguard config on your client node to connect to the network:\n\n%s\n", *wireguardConfig)
+			} else {
+				cmd.Printf("%s\n", *wireguardConfig)
+			}
 		} else {
 			// create join request
 			joinRequest, err := join_requests_repository.Create(types.UDPAddrMarshable{
@@ -95,13 +104,18 @@ var NewClientCmd = &cobra.Command{
 				return
 			}
 
-			cmd.Printf("wireport:\n\nNew client created, use the following join request to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
+			if !quietClientCreation {
+				cmd.Printf("wireport:\n\nNew client created, use the following join request to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
+			} else {
+				cmd.Printf("%s\n", *joinRequestBase64)
+			}
 		}
 	},
 }
 
 func init() {
 	NewClientCmd.Flags().BoolVarP(&forceClientCreation, "force", "f", false, "Force create a client node without generating a join request")
+	NewClientCmd.Flags().BoolVarP(&quietClientCreation, "quiet", "q", false, "Quiet mode, don't print any output except for the join request token")
 
 	ClientCmd.AddCommand(NewClientCmd)
 }
