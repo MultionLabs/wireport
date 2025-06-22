@@ -543,6 +543,16 @@ func (r *Repository) TotalAndAvailableDockerSubnets() (int, int, error) {
 	return len(nodes), (dockerSubnetEnd - dockerSubnetStart + 1) - len(nodes), nil
 }
 
+func (r *Repository) TotalAvailableWireguardClients() (int, int, error) {
+	var count int64
+
+	if err := r.db.Model(&types.Node{}).Count(&count).Error; err != nil {
+		return 0, 0, err
+	}
+
+	return int(count), (wgPrivateIpEnd - wgPrivateIpStart + 1) - int(count), nil
+}
+
 func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, error) {
 	var nodes []types.Node
 

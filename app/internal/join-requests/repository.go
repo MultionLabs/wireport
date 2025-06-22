@@ -62,10 +62,21 @@ func (r *Repository) Delete(id string) error {
 	return r.db.Delete(&types.JoinRequest{}, "id = ?", id).Error
 }
 
-func (r *Repository) Count() int {
+func (r *Repository) CountAll() int {
 	var count int64
 
 	if err := r.db.Model(&types.JoinRequest{}).Count(&count).Error; err != nil {
+		return 0
+	}
+
+	return int(count)
+}
+
+func (r *Repository) CountServerJoinRequests() int {
+	// client & server nodes use docker subnets
+	var count int64
+
+	if err := r.db.Model(&types.JoinRequest{}).Where("role = ?", nodeTypes.NodeRoleServer).Count(&count).Error; err != nil {
 		return 0
 	}
 
