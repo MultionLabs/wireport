@@ -11,6 +11,7 @@ import (
 )
 
 var forceServerCreation bool = false
+var quietServerCreation bool = false
 var dockerSubnet string = ""
 
 var ServerCmd = &cobra.Command{
@@ -70,11 +71,15 @@ var NewServerCmd = &cobra.Command{
 
 			dockerSubnetPtr = &dockerSubnet
 
-			cmd.Printf("Using custom Docker subnet: %s\n", dockerSubnet)
+			if !quietServerCreation {
+				cmd.Printf("Using custom Docker subnet: %s\n", dockerSubnet)
+			}
 		}
 
 		if forceServerCreation {
-			cmd.Printf("Force flag detected, creating server node without generating a join request\n")
+			if !quietServerCreation {
+				cmd.Printf("Force flag detected, creating server node without generating a join request\n")
+			}
 
 			_, err := nodes_repository.CreateServer(dockerSubnetPtr)
 
@@ -83,7 +88,10 @@ var NewServerCmd = &cobra.Command{
 				return
 			}
 
-			cmd.Printf("Server node created without join request\n")
+			if !quietServerCreation {
+				cmd.Printf("Server node created without join request\n")
+			}
+
 			return
 		}
 
@@ -113,7 +121,11 @@ var NewServerCmd = &cobra.Command{
 			return
 		}
 
-		cmd.Printf("wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
+		if !quietServerCreation {
+			cmd.Printf("wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
+		} else {
+			cmd.Printf("%s\n", *joinRequestBase64)
+		}
 	},
 }
 
@@ -152,6 +164,7 @@ var StartServerCmd = &cobra.Command{
 func init() {
 	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
+	NewServerCmd.Flags().BoolVarP(&quietServerCreation, "quiet", "q", false, "Quiet mode, don't print any output except for the join request token")
 
 	ServerCmd.AddCommand(NewServerCmd)
 	ServerCmd.AddCommand(StartServerCmd)
