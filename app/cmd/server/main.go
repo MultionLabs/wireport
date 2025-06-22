@@ -5,7 +5,6 @@ import (
 	"wireport/cmd/server/commands"
 	"wireport/cmd/server/config"
 	"wireport/internal/database"
-	"wireport/internal/logger"
 	"wireport/version"
 
 	"github.com/spf13/cobra"
@@ -54,13 +53,13 @@ func main() {
 	db, err := database.InitDB()
 
 	if err != nil {
-		logger.Fatal("Failed to initialize database at %s: %v", config.Config.DatabasePath, err)
+		rootCmd.PrintErrf("Failed to initialize database at %s: %v\n", config.Config.DatabasePath, err)
 	}
 
 	commands.RegisterCommands(rootCmd, db)
 
 	if err := rootCmd.Execute(); err != nil {
-		logger.Error("%v", err)
+		rootCmd.PrintErrf("%v\n", err)
 	}
 
 	defer database.CloseDB(db)

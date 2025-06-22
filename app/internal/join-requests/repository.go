@@ -21,7 +21,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	}
 }
 
-func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string) (*types.JoinRequest, error) {
+func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string, role nodeTypes.NodeRole) (*types.JoinRequest, error) {
 	encryptionKey, err := encryption.GenerateKey()
 
 	if err != nil {
@@ -34,7 +34,7 @@ func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet
 		Id:                  uuid.New().String(),
 		EncryptionKeyBase64: encryptionKeyBase64,
 		HostAddress:         hostAddress.String(),
-		Role:                nodeTypes.NodeRoleServer,
+		Role:                role,
 		CreatedAt:           time.Now(),
 		DockerSubnet:        dockerSubnet,
 	}

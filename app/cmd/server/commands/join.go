@@ -5,7 +5,6 @@ import (
 
 	"wireport/cmd/server/config"
 	docker_utils "wireport/internal/docker-utils"
-	"wireport/internal/logger"
 	"wireport/internal/nodes/types"
 	public_services "wireport/internal/public-services"
 
@@ -15,50 +14,50 @@ import (
 var JoinCmd = &cobra.Command{
 	Use:   "join",
 	Short: "Join the wireport network",
-	Long:  `Join the wireport network using a join-request token, provided by the 'wireport server create' command`,
+	Long:  `Join the wireport network using a join-request token, provided by the 'wireport server new' command`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			logger.Fatal("Provide a join token")
+			cmd.PrintErrf("Provide a join token\n")
 			return
 		}
 
 		joinToken := args[0]
 
 		if joinToken == "" {
-			logger.Fatal("Provide a join token")
+			cmd.PrintErrf("Provide a join token\n")
 			return
 		}
 
-		logger.Info("Joining wireport network with token: %s", joinToken)
+		cmd.Printf("Joining wireport network with token: %s\n", joinToken)
 
 		response, err := join_requests_service.Join(joinToken)
 
 		if err != nil {
-			logger.Fatal("Failed to join network: %v", err)
+			cmd.PrintErrf("Failed to join network: %v\n", err)
 			return
 		}
 
 		responseBytes, _ := json.Marshal(response)
 		responseJSON := string(responseBytes)
 
-		logger.Info("Join response: %s", responseJSON)
+		cmd.Printf("Join response: %s\n", responseJSON)
 
 		currentNode := response.NodeConfig
 
 		if currentNode != nil {
-			logger.Info("Saving node config to database")
+			cmd.Printf("Saving node config to database\n")
 
 			dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
 
 			if err != nil {
-				logger.Fatal("Failed to parse docker subnet: %v", err)
+				cmd.PrintErrf("Failed to parse docker subnet: %v\n", err)
 				return
 			}
 
 			err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
 
 			if err != nil {
-				logger.Fatal("Failed to ensure docker network %s with subnet %s exists and is attached: %v", config.Config.DockerNetworkName, dockerSubnet.String(), err)
+				cmd.PrintErrf("Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
 				return
 			}
 
@@ -67,7 +66,7 @@ var JoinCmd = &cobra.Command{
 			err = nodes_repository.SaveNode(currentNode)
 
 			if err != nil {
-				logger.Fatal("Failed to save node config: %v", err)
+				cmd.PrintErrf("Failed to save node config: %v\n", err)
 				return
 			}
 
@@ -76,13 +75,13 @@ var JoinCmd = &cobra.Command{
 			err = currentNode.SaveConfigs(publicServices, true)
 
 			if err != nil {
-				logger.Fatal("Failed to save node configs: %v", err)
+				cmd.PrintErrf("Failed to save node configs: %v\n", err)
 				return
 			}
 
-			logger.Info("Successfully saved node config to the database")
+			cmd.Printf("Successfully saved node config to the database\n")
 		}
 
-		logger.Info("Successfully joined the network")
+		cmd.Printf("Successfully joined the network\n")
 	},
 }

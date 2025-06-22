@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"wireport/cmd/server/config"
-	"wireport/internal/logger"
 	"wireport/internal/nodes/types"
 	public_services "wireport/internal/public-services"
 
@@ -28,14 +27,14 @@ var NewServerCmd = &cobra.Command{
 		totalDockerSubnets, availableDockerSubnets, err := nodes_repository.TotalAndAvailableDockerSubnets()
 
 		if err != nil {
-			logger.Fatal("Failed to count available Docker subnets: %v", err)
+			cmd.PrintErrf("Failed to count available Docker subnets: %v\n", err)
 			return
 		}
 
 		totalJoinRequests := join_requests_repository.Count()
 
 		if availableDockerSubnets <= 0 || totalJoinRequests >= availableDockerSubnets {
-			logger.Fatal("No Docker subnets available. Please delete some server nodes (total: %d) or join-requests (total: %d) to free up some subnets.", totalDockerSubnets, totalJoinRequests)
+			cmd.PrintErrf("No Docker subnets available. Please delete some server nodes (total: %d) or join-requests (total: %d) to free up some subnets.\n", totalDockerSubnets, totalJoinRequests)
 			return
 		}
 
@@ -46,38 +45,38 @@ var NewServerCmd = &cobra.Command{
 			parsedDockerSubnet, err := types.ParseIPNetMarshable(dockerSubnet, true)
 
 			if err != nil {
-				logger.Fatal("Failed to parse Docker subnet: %v", err)
+				cmd.PrintErrf("Failed to parse Docker subnet: %v\n", err)
 				return
 			}
 
 			if !nodes_repository.IsDockerSubnetAvailable(parsedDockerSubnet) {
-				logger.Fatal("Docker subnet %s is already in use", dockerSubnet)
+				cmd.PrintErrf("Docker subnet %s is already in use\n", dockerSubnet)
 				return
 			}
 
 			dockerSubnetPtr = &dockerSubnet
 
-			logger.Info("Using custom Docker subnet: %s", dockerSubnet)
+			cmd.Printf("Using custom Docker subnet: %s\n", dockerSubnet)
 		}
 
 		if force {
-			logger.Info("Force flag detected, creating server node without generating a join request")
+			cmd.Printf("Force flag detected, creating server node without generating a join request\n")
 
 			_, err := nodes_repository.CreateServer(dockerSubnetPtr)
 
 			if err != nil {
-				logger.Fatal("Failed to create server node: %v", err)
+				cmd.PrintErrf("Failed to create server node: %v\n", err)
 				return
 			}
 
-			logger.Info("Server node created without join request")
+			cmd.Printf("Server node created without join request\n")
 			return
 		}
 
 		hostNode, err := nodes_repository.GetHostNode()
 
 		if err != nil {
-			logger.Fatal("Failed to get host node: %v", err)
+			cmd.PrintErrf("Failed to get host node: %v\n", err)
 			return
 		}
 
@@ -86,21 +85,21 @@ var NewServerCmd = &cobra.Command{
 				IP:   net.ParseIP(*hostNode.WGPublicIp),
 				Port: int(config.Config.ControlServerPort),
 			},
-		}, dockerSubnetPtr)
+		}, dockerSubnetPtr, types.NodeRoleServer)
 
 		if err != nil {
-			logger.Fatal("Failed to create join request: %v", err)
+			cmd.PrintErrf("Failed to create join request: %v\n", err)
 			return
 		}
 
 		joinRequestBase64, err := joinRequest.ToBase64()
 
 		if err != nil {
-			logger.Fatal("Failed to encode join request: %v", err)
+			cmd.PrintErrf("Failed to encode join request: %v\n", err)
 			return
 		}
 
-		logger.Info("wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s", *joinRequestBase64)
+		cmd.Printf("wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
 	},
 }
 
@@ -109,22 +108,22 @@ var StartServerCmd = &cobra.Command{
 	Short: "Start the wireport server",
 	Long:  `Start the wireport server. This command is only relevant for server nodes after they joined the network.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger.Info("Starting wireport server")
+		cmd.Printf("Starting wireport server\n")
 
 		currentNode, err := nodes_repository.GetCurrentNode()
 
 		if err != nil {
-			logger.Fatal("Failed to get current node: %v", err)
+			cmd.PrintErrf("Failed to get current node: %v\n", err)
 			return
 		}
 
 		if currentNode == nil {
-			logger.Fatal("No current node found")
+			cmd.PrintErrf("No current node found\n")
 			return
 		}
 
 		if currentNode.Role != types.NodeRoleServer {
-			logger.Fatal("Current node is not a server node")
+			cmd.PrintErrf("Current node is not a server node\n")
 			return
 		}
 
@@ -132,13 +131,14 @@ var StartServerCmd = &cobra.Command{
 
 		currentNode.SaveConfigs(publicServices, true)
 
-		logger.Info("Server node configs saved to the disk successfully")
+		cmd.Printf("Server node configs saved to the disk successfully\n")
 	},
 }
 
 func init() {
 	NewServerCmd.Flags().BoolVarP(&force, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
+
 	ServerCmd.AddCommand(NewServerCmd)
 	ServerCmd.AddCommand(StartServerCmd)
 }
