@@ -2,8 +2,10 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"wireport/internal/logger"
+	"wireport/version"
 
 	"github.com/joho/godotenv"
 )
@@ -32,6 +34,23 @@ func GetEnv(key string, defaultValue string) string {
 	return value
 }
 
+func getHomeDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logger.Warn("Could not determine home directory: %v", err)
+		return ""
+	}
+	return homeDir
+}
+
+func getDefaultDatabasePath(fallback string) string {
+	homeDir := getHomeDir()
+	if homeDir == "" {
+		return fallback
+	}
+	return filepath.Join(homeDir, ".wireport", version.Version, "wireport.db")
+}
+
 type Configuration struct {
 	ControlServerPort uint16
 	DatabasePath      string
@@ -42,9 +61,10 @@ type Configuration struct {
 	CaddyConfigPath     string
 	CoreDNSConfigPath   string
 
-	ResolvConfigTemplatePath  string
-	CaddyConfigTemplatePath   string
-	CoreDNSConfigTemplatePath string
+	ResolvConfigTemplatePath        string
+	CaddyConfigTemplatePath         string
+	CoreDNSConfigTemplatePath       string
+	BootstrapHostScriptTemplatePath string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -52,9 +72,12 @@ type Configuration struct {
 	WireguardRestartCommand string
 	CaddyRestartCommand     string
 	CoreDNSRestartCommand   string
+
+	WireportHostContainerName  string
+	WireportHostContainerImage string
 }
 
-var DatabasePath = GetEnv("DATABASE_PATH", "/app/wireport/wireport.db")
+var DatabasePath = GetEnv("DATABASE_PATH", getDefaultDatabasePath("/app/wireport/wireport.db"))
 
 var Config *Configuration = &Configuration{
 	ControlServerPort: 4060,
@@ -66,14 +89,18 @@ var Config *Configuration = &Configuration{
 	CaddyConfigPath:     GetEnv("CADDY_CONFIG_PATH", "/etc/caddy/Caddyfile"),
 	CoreDNSConfigPath:   GetEnv("COREDNS_CONFIG_PATH", "/etc/coredns/Corefile"),
 
-	ResolvConfigTemplatePath:  "configs/resolv/resolv.hbs",
-	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
-	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
+	ResolvConfigTemplatePath:        "configs/resolv/resolv.hbs",
+	CaddyConfigTemplatePath:         "configs/caddy/caddyfile.hbs",
+	CoreDNSConfigTemplatePath:       "configs/coredns/corefile.hbs",
+	BootstrapHostScriptTemplatePath: "scripts/bootstrap/host.hbs",
 
-	DockerNetworkName:   "wgp-net",
+	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",
 
 	WireguardRestartCommand: "/usr/bin/wg-quick down wg0 && /usr/bin/wg-quick up wg0",
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
 	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
+
+	WireportHostContainerName:  "wireport-host",
+	WireportHostContainerImage: "anybotsllc/wireport",
 }
