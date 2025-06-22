@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var force bool = false
+var forceServerCreation bool = false
 var dockerSubnet string = ""
 
 var ServerCmd = &cobra.Command{
@@ -31,10 +31,24 @@ var NewServerCmd = &cobra.Command{
 			return
 		}
 
-		totalJoinRequests := join_requests_repository.Count()
+		totalServerRoleJoinRequests := join_requests_repository.CountServerJoinRequests()
 
-		if availableDockerSubnets <= 0 || totalJoinRequests >= availableDockerSubnets {
-			cmd.PrintErrf("No Docker subnets available. Please delete some server nodes (total: %d) or join-requests (total: %d) to free up some subnets.\n", totalDockerSubnets, totalJoinRequests)
+		if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
+			cmd.PrintErrf("No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
+			return
+		}
+
+		totalWireguardClients, availableWireguardClients, err := nodes_repository.TotalAvailableWireguardClients()
+
+		if err != nil {
+			cmd.PrintErrf("Failed to count available Wireguard clients: %v\n", err)
+			return
+		}
+
+		totalJoinRequests := join_requests_repository.CountAll()
+
+		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
+			cmd.PrintErrf("No Wireguard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
 			return
 		}
 
@@ -59,7 +73,7 @@ var NewServerCmd = &cobra.Command{
 			cmd.Printf("Using custom Docker subnet: %s\n", dockerSubnet)
 		}
 
-		if force {
+		if forceServerCreation {
 			cmd.Printf("Force flag detected, creating server node without generating a join request\n")
 
 			_, err := nodes_repository.CreateServer(dockerSubnetPtr)
@@ -136,7 +150,7 @@ var StartServerCmd = &cobra.Command{
 }
 
 func init() {
-	NewServerCmd.Flags().BoolVarP(&force, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
+	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
 
 	ServerCmd.AddCommand(NewServerCmd)

@@ -46,7 +46,7 @@ wireport client new
 
 Done!
 Now you can access the docker-based services from the remote server from your client machine and over the public internet`,
-	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s)", version.Version, version.Commit, version.Date, version.Arch, version.OS),
+	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s); db path: %s", version.Version, version.Commit, version.Date, version.Arch, version.OS, config.DatabasePath),
 }
 
 func main() {

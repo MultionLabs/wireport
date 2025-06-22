@@ -44,8 +44,28 @@ var JoinCmd = &cobra.Command{
 
 		currentNode := response.NodeConfig
 
-		if currentNode != nil {
-			cmd.Printf("Saving node config to database\n")
+		if currentNode == nil {
+			cmd.PrintErrf("Failed to get node config from join response\n")
+			return
+		}
+
+		currentNode.IsCurrentNode = true
+
+		err = nodes_repository.SaveNode(currentNode)
+
+		if err != nil {
+			cmd.PrintErrf("Failed to save node config: %v\n", err)
+			return
+		}
+
+		switch currentNode.Role {
+		case types.NodeRoleServer:
+			cmd.Printf("Setting up server node (configs and network)\n")
+
+			if currentNode.DockerSubnet == nil {
+				cmd.PrintErrf("Failed to get docker subnet from node config\n")
+				return
+			}
 
 			dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
 
@@ -61,15 +81,6 @@ var JoinCmd = &cobra.Command{
 				return
 			}
 
-			currentNode.IsCurrentNode = true
-
-			err = nodes_repository.SaveNode(currentNode)
-
-			if err != nil {
-				cmd.PrintErrf("Failed to save node config: %v\n", err)
-				return
-			}
-
 			publicServices := []*public_services.PublicService{}
 
 			err = currentNode.SaveConfigs(publicServices, true)
@@ -80,6 +91,18 @@ var JoinCmd = &cobra.Command{
 			}
 
 			cmd.Printf("Successfully saved node config to the database\n")
+		case types.NodeRoleClient:
+			wireguardConfig, err := currentNode.GetFormattedWireguardConfig()
+
+			if err != nil {
+				cmd.PrintErrf("Failed to get wireguard config: %v\n", err)
+				return
+			}
+
+			cmd.Printf("New client created, use the following wireguard config to connect to the network:\n\n%s\n", *wireguardConfig)
+		default:
+			cmd.PrintErrf("Invalid node role: %s\n", currentNode.Role)
+			return
 		}
 
 		cmd.Printf("Successfully joined the network\n")
