@@ -264,7 +264,7 @@ func (s *Service) IsWireportHostContainerRunning() (bool, error) {
 		return false, nil
 	}
 
-	checkContainerCmd := fmt.Sprintf("docker ps -a --filter name=^/%s$ --format '{{.Names}}'", config.Config.WireportHostContainerName)
+	checkContainerCmd := fmt.Sprintf("docker ps --filter name=^/%s$ --format '{{.Names}}'", config.Config.WireportHostContainerName)
 	result, err := s.executeCommand(checkContainerCmd)
 
 	if err != nil {

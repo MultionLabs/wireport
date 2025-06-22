@@ -112,12 +112,50 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 				return
 			}
 
-			network_apps.ScheduleNetworkAppsRestart(10*time.Second, true, false, false)
+			network_apps.RestartNetworkApps(true, false, false)
 
 			// Schedule service restart for 10 seconds later to ensure coredns picks up the new server node
 			network_apps.ScheduleNetworkAppsRestart(10*time.Second, false, true, true)
 
 			responsePayload.NodeConfig = serverNode
+		case node_types.NodeRoleClient:
+			clientNode, err := nodes_repository.CreateClient()
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, ErrFailedToCreateClientNode, err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			hostNode, err := nodes_repository.GetHostNode()
+
+			if err != nil || hostNode == nil {
+				logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetHostNode, err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			logger.Info("[%s] Client node created from join request", r.Method)
+
+			publicServices := public_services_repository.GetAll()
+
+			err = hostNode.SaveConfigs(publicServices, false)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveHostConfigs, err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			err = network_apps.RestartNetworkApps(true, false, false)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, ErrFailedToRestartServices, err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			responsePayload.NodeConfig = clientNode
 		default:
 			logger.Error("[%s] %v: %v", r.Method, ErrInvalidJoinRequestRole, joinRequestFromDB.Role)
 			http.Error(w, "", http.StatusBadRequest)
