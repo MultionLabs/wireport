@@ -1,4 +1,4 @@
-package encryption
+package aes
 
 import (
 	"bytes"
@@ -35,8 +35,8 @@ func unpad(data []byte) ([]byte, error) {
 	return data[:length-padding], nil
 }
 
-func EncryptAES(plainText []byte, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func EncryptAES(plainText []byte, aesKey []byte) ([]byte, error) {
+	block, err := aes.NewCipher(aesKey)
 
 	if err != nil {
 		return nil, fmt.Errorf("create cipher: %w", err)
@@ -58,8 +58,8 @@ func EncryptAES(plainText []byte, key []byte) ([]byte, error) {
 	return cipherText, nil
 }
 
-func DecryptAES(cipherText []byte, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func DecryptAES(cipherText []byte, aesKey []byte) ([]byte, error) {
+	block, err := aes.NewCipher(aesKey)
 
 	if err != nil {
 		return nil, fmt.Errorf("create cipher: %w", err)
@@ -83,13 +83,13 @@ func DecryptAES(cipherText []byte, key []byte) ([]byte, error) {
 	return unpad(plainText)
 }
 
-func GenerateKey() ([]byte, error) {
+func GenerateAESKey() ([]byte, error) {
 	key := make([]byte, 32)
 
 	_, err := rand.Read(key)
 
 	if err != nil {
-		return nil, fmt.Errorf("generate random key: %w", err)
+		return nil, fmt.Errorf("generate random aes key: %w", err)
 	}
 
 	return key, nil

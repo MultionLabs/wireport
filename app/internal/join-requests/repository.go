@@ -3,7 +3,7 @@ package join_requests
 import (
 	"encoding/base64"
 	"time"
-	"wireport/internal/encryption"
+	encryption_aes "wireport/internal/encryption/aes"
 	"wireport/internal/join-requests/types"
 	nodeTypes "wireport/internal/nodes/types"
 
@@ -22,7 +22,7 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string, role nodeTypes.NodeRole) (*types.JoinRequest, error) {
-	encryptionKey, err := encryption.GenerateKey()
+	encryptionKey, err := encryption_aes.GenerateAESKey()
 
 	if err != nil {
 		return nil, err

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-	"wireport/internal/encryption"
+	encryption_aes "wireport/internal/encryption/aes"
 	join_requests_types "wireport/internal/join-requests/types"
 	"wireport/internal/logger"
 	network_apps "wireport/internal/network-apps"
@@ -21,7 +21,7 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 	switch r.Method {
 	case http.MethodPost:
 		// 1. Parse & validate request
-		var encryptedRequest = encryption.EncryptedRequestDTO{}
+		var encryptedRequest = encryption_aes.EncryptedRequestDTO{}
 
 		if err := json.NewDecoder(r.Body).Decode(&encryptedRequest); err != nil {
 			logger.Error("[%s] Failed to parse request: %v", r.Method, err)
@@ -39,7 +39,7 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 			return
 		}
 
-		decryptedJoinRequestDto, err := encryption.DecryptRequest[join_requests_types.JoinRequestDTO](encryptedRequest, joinRequestFromDB.EncryptionKeyBase64)
+		decryptedJoinRequestDto, err := encryption_aes.DecryptRequest[join_requests_types.JoinRequestDTO](encryptedRequest, joinRequestFromDB.EncryptionKeyBase64)
 
 		if err != nil {
 			logger.Error("[%s] Failed to decrypt join request: %v", r.Method, err)
@@ -163,7 +163,7 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 		}
 
 		// 3. Encrypt the response
-		encryptedResponse, err := encryption.EncryptResponse(responsePayload, joinRequestId, joinRequestFromDB.EncryptionKeyBase64)
+		encryptedResponse, err := encryption_aes.EncryptResponse(responsePayload, joinRequestId, joinRequestFromDB.EncryptionKeyBase64)
 
 		if err != nil {
 			logger.Error("[%s] %v: %v", r.Method, ErrFailedToEncryptResponse, err)

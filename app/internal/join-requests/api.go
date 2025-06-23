@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"time"
-	"wireport/internal/encryption"
+	encryption_aes "wireport/internal/encryption/aes"
 	join_requests_types "wireport/internal/join-requests/types"
 )
 
@@ -59,7 +59,7 @@ func (s *APIService) Join(joinToken string) (*join_requests_types.JoinResponseDT
 		JoinToken: joinToken,
 	}
 
-	joinResponse, err := encryption.EncryptedAPIRequest[join_requests_types.JoinResponseDTO](s.client, fmt.Sprintf("http://%s/join", joinRequest.HostAddress), payload, joinRequest.Id, joinRequest.EncryptionKeyBase64)
+	joinResponse, err := encryption_aes.EncryptedAPIRequest[join_requests_types.JoinResponseDTO](s.client, fmt.Sprintf("http://%s/join", joinRequest.HostAddress), payload, joinRequest.Id, joinRequest.EncryptionKeyBase64)
 
 	if err != nil {
 		return nil, ErrFailedToSendJoinRequest

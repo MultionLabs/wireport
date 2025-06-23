@@ -227,7 +227,7 @@ func (s *Service) HostStart(join_requests_service *join_requests.APIService, nod
 
 	hostNode, err := nodes_repository.EnsureHostNode(types.IPMarshable{
 		IP: net.ParseIP(*publicIP),
-	}, config.Config.WGPublicPort)
+	}, config.Config.WGPublicPort, *publicIP, config.Config.ControlServerPort)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "wireport host node start failed: %v\n", err)
