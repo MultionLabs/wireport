@@ -161,7 +161,7 @@ func (r *Repository) updateNodes() error {
 	return nil
 }
 
-func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint16) (*types.Node, error) {
+func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint16, hostPublicIp string, hostPublicPort uint16) (*types.Node, error) {
 	logger.Info("Creating host node")
 
 	if r.db.First(&types.Node{}, "role = ?", types.NodeRoleHost).RowsAffected > 0 {
@@ -631,7 +631,7 @@ func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) 
 	return nil, ErrNoAvailableWGPrivateIPs
 }
 
-func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16) (*types.Node, error) {
+func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16, hostPublicIp string, hostPublicPort uint16) (*types.Node, error) {
 	hostNode, err := r.GetHostNode()
 
 	if err != nil {
@@ -641,7 +641,7 @@ func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort u
 	if hostNode == nil {
 		logger.Info("Host node not found, creating host node")
 
-		hostNode, err = r.CreateHost(WGPublicIp, WGPublicPort)
+		hostNode, err = r.CreateHost(WGPublicIp, WGPublicPort, hostPublicIp, hostPublicPort)
 
 		if err != nil {
 			logger.Error("Failed to create host node: %v", err)

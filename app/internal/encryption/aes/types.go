@@ -1,4 +1,4 @@
-package encryption
+package aes
 
 type EncryptedRequestDTO struct {
 	SyncID  string `json:"syncId"`
