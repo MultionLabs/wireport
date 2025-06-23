@@ -1,13 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
-
-	"wireport/cmd/server/config"
-	docker_utils "wireport/internal/docker-utils"
-	"wireport/internal/nodes/types"
-	public_services "wireport/internal/public-services"
-
 	"github.com/spf13/cobra"
 )
 
@@ -28,83 +21,6 @@ var JoinCmd = &cobra.Command{
 			return
 		}
 
-		cmd.Printf("Joining wireport network with token: %s\n", joinToken)
-
-		response, err := join_requests_service.Join(joinToken)
-
-		if err != nil {
-			cmd.PrintErrf("Failed to join network: %v\n", err)
-			return
-		}
-
-		responseBytes, _ := json.Marshal(response)
-		responseJSON := string(responseBytes)
-
-		cmd.Printf("Join response: %s\n", responseJSON)
-
-		currentNode := response.NodeConfig
-
-		if currentNode == nil {
-			cmd.PrintErrf("Failed to get node config from join response\n")
-			return
-		}
-
-		currentNode.IsCurrentNode = true
-
-		err = nodes_repository.SaveNode(currentNode)
-
-		if err != nil {
-			cmd.PrintErrf("Failed to save node config: %v\n", err)
-			return
-		}
-
-		switch currentNode.Role {
-		case types.NodeRoleServer:
-			cmd.Printf("Setting up server node (configs and network)\n")
-
-			if currentNode.DockerSubnet == nil {
-				cmd.PrintErrf("Failed to get docker subnet from node config\n")
-				return
-			}
-
-			dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
-
-			if err != nil {
-				cmd.PrintErrf("Failed to parse docker subnet: %v\n", err)
-				return
-			}
-
-			err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
-
-			if err != nil {
-				cmd.PrintErrf("Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
-				return
-			}
-
-			publicServices := []*public_services.PublicService{}
-
-			err = currentNode.SaveConfigs(publicServices, true)
-
-			if err != nil {
-				cmd.PrintErrf("Failed to save node configs: %v\n", err)
-				return
-			}
-
-			cmd.Printf("Successfully saved node config to the database\n")
-		case types.NodeRoleClient:
-			wireguardConfig, err := currentNode.GetFormattedWireguardConfig()
-
-			if err != nil {
-				cmd.PrintErrf("Failed to get wireguard config: %v\n", err)
-				return
-			}
-
-			cmd.Printf("New client created, use the following wireguard config to connect to the network:\n\n%s\n", *wireguardConfig)
-		default:
-			cmd.PrintErrf("Invalid node role: %s\n", currentNode.Role)
-			return
-		}
-
-		cmd.Printf("Successfully joined the network\n")
+		commandsService.Join(join_requests_service, nodes_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), joinToken)
 	},
 }

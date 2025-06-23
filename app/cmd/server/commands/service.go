@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	network_apps "wireport/internal/network-apps"
 	public_services "wireport/internal/public-services"
 )
 
@@ -72,7 +71,7 @@ var PublishServiceCmd = &cobra.Command{
 	Long:  `Publish a new public service that should be exposed to the internet`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if !nodes_repository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
+			cmd.PrintErrf("This command can only be used on a host node\n")
 			return
 		}
 
@@ -90,42 +89,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		err = public_services_repository.Save(&public_services.PublicService{
-			LocalProtocol:  *localProtocol,
-			LocalHost:      *localHost,
-			LocalPort:      *localPort,
-			PublicProtocol: *publicProtocol,
-			PublicHost:     *publicHost,
-			PublicPort:     *publicPort,
-		})
-
-		if err != nil {
-			cmd.Printf("Error creating public service: %v\n", err)
-			return
-		}
-
-		hostNode, err := nodes_repository.GetHostNode()
-
-		if err != nil {
-			cmd.Printf("Error getting host node: %v\n", err)
-			return
-		}
-
-		err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
-
-		if err != nil {
-			cmd.Printf("Error saving host node configs: %v\n", err)
-			return
-		}
-
-		err = network_apps.RestartNetworkApps(false, false, true)
-
-		if err != nil {
-			cmd.Printf("Error restarting services: %v\n", err)
-			return
-		}
-
-		cmd.Printf("Service %s://%s:%d is now published on\n\n\t\t%s://%s:%d\n\n", *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServicePublish(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -146,34 +110,7 @@ var UnpublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		unpublished := public_services_repository.Delete(*publicProtocol, *publicHost, *publicPort)
-
-		if unpublished {
-			hostNode, err := nodes_repository.GetHostNode()
-
-			if err != nil {
-				cmd.Printf("Error getting host node: %v\n", err)
-				return
-			}
-
-			err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
-
-			if err != nil {
-				cmd.Printf("Error saving host node configs: %v\n", err)
-				return
-			}
-
-			err = network_apps.RestartNetworkApps(false, false, true)
-
-			if err != nil {
-				cmd.Printf("Error restarting services: %v\n", err)
-				return
-			}
-
-			cmd.Printf("\nService %s://%s:%d is now unpublished\n", *publicProtocol, *publicHost, *publicPort)
-		} else {
-			cmd.Printf("\nService %s://%s:%d was not found or was already unpublished\n", *publicProtocol, *publicHost, *publicPort)
-		}
+		commandsService.ServiceUnpublish(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -187,13 +124,7 @@ var ListServiceCmd = &cobra.Command{
 			return
 		}
 
-		services := public_services_repository.GetAll()
-
-		cmd.Printf("PUBLIC\tLOCAL\n")
-
-		for _, service := range services {
-			cmd.Printf("%s://%s:%d\t%s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort, service.LocalProtocol, service.LocalHost, service.LocalPort)
-		}
+		commandsService.ServiceList(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -214,34 +145,7 @@ var NewParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		updated := public_services_repository.AddParam(*publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
-
-		if updated {
-			hostNode, err := nodes_repository.GetHostNode()
-
-			if err != nil {
-				cmd.Printf("Error getting host node: %v\n", err)
-				return
-			}
-
-			err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
-
-			if err != nil {
-				cmd.Printf("Error saving host node configs: %v\n", err)
-				return
-			}
-
-			err = network_apps.RestartNetworkApps(false, false, true)
-
-			if err != nil {
-				cmd.Printf("Error restarting services: %v\n", err)
-				return
-			}
-
-			cmd.Printf("Parameter added successfully\n")
-		} else {
-			cmd.Printf("Parameter was not added (probably already exists)\n")
-		}
+		commandsService.ServiceParamNew(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -262,34 +166,7 @@ var RemoveParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		removed := public_services_repository.RemoveParam(*publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
-
-		if removed {
-			hostNode, err := nodes_repository.GetHostNode()
-
-			if err != nil {
-				cmd.Printf("Error getting host node: %v\n", err)
-				return
-			}
-
-			err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
-
-			if err != nil {
-				cmd.Printf("Error saving host node configs: %v\n", err)
-				return
-			}
-
-			err = network_apps.RestartNetworkApps(false, false, true)
-
-			if err != nil {
-				cmd.Printf("Error restarting services: %v\n", err)
-				return
-			}
-
-			cmd.Printf("Parameter removed successfully\n")
-		} else {
-			cmd.Printf("Parameter was not removed (probably not found)\n")
-		}
+		commandsService.ServiceParamRemove(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -310,20 +187,7 @@ var ListParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		service, err := public_services_repository.Get(*publicProtocol, *publicHost, *publicPort)
-
-		if err != nil {
-			cmd.Printf("Error getting service: %v\n", err)
-			return
-		}
-
-		cmd.Printf("Params of %s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort)
-
-		for _, param := range service.Params {
-			cmd.Printf("%s\n", param.ParamValue)
-		}
-
-		cmd.Printf("\n")
+		commandsService.ServiceParamList(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
