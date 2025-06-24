@@ -9,7 +9,9 @@ import (
 	"strings"
 	"wireport/cmd/server/config"
 	docker_utils "wireport/internal/docker-utils"
+	"wireport/internal/encryption/mtls"
 	join_requests "wireport/internal/join-requests"
+	join_requests_types "wireport/internal/join-requests/types"
 	network_apps "wireport/internal/network-apps"
 	"wireport/internal/nodes"
 	"wireport/internal/nodes/types"
@@ -17,6 +19,7 @@ import (
 	"wireport/internal/routes"
 	"wireport/internal/ssh"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -205,19 +208,12 @@ func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut
 	fmt.Fprintf(stdOut, "✨ Bootstrap process completed!\n")
 }
 
-func (s *Service) HostStart(join_requests_service *join_requests.APIService, nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, dbInstance *gorm.DB, stdOut io.Writer, errOut io.Writer, hostStartConfigureOnly bool) {
+func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, dbInstance *gorm.DB, stdOut io.Writer, errOut io.Writer, hostStartConfigureOnly bool) {
 	router := routes.Router(dbInstance)
 
-	publicIP, err := join_requests_service.GetPublicIP()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get public IP: %v\n", err)
-		return
-	}
-
 	hostNode, err := nodes_repository.EnsureHostNode(types.IPMarshable{
-		IP: net.ParseIP(*publicIP),
-	}, config.Config.WGPublicPort, *publicIP, config.Config.ControlServerPort)
+		IP: net.ParseIP(hostPublicIp),
+	}, config.Config.WGPublicPort, hostPublicIp, config.Config.ControlServerPort)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "wireport host node start failed: %v\n", err)
@@ -225,11 +221,29 @@ func (s *Service) HostStart(join_requests_service *join_requests.APIService, nod
 		return
 	}
 
+	if hostNode.HostCertBundle == nil {
+		fmt.Fprintf(errOut, "wireport host node start failed: no host cert bundle found\n")
+		return
+	}
+
 	serverError := make(chan error, 1)
 
 	if !hostStartConfigureOnly {
 		go func() {
-			if err := http.ListenAndServe(fmt.Sprintf(":%d", config.Config.ControlServerPort), router); err != nil {
+			tlsConfig, err := hostNode.HostCertBundle.GetServerTLSConfig()
+			if err != nil {
+				serverError <- fmt.Errorf("failed to get TLS config: %v", err)
+				return
+			}
+
+			// Create TLS server
+			server := &http.Server{
+				Addr:      fmt.Sprintf(":%d", config.Config.ControlServerPort),
+				Handler:   router,
+				TLSConfig: tlsConfig,
+			}
+
+			if err := server.ListenAndServeTLS("", ""); err != nil {
 				serverError <- err
 			}
 		}()
@@ -245,7 +259,7 @@ func (s *Service) HostStart(join_requests_service *join_requests.APIService, nod
 	}
 
 	if !hostStartConfigureOnly {
-		fmt.Fprintf(stdOut, "wireport server has started on host: %s\n", *hostNode.WGPublicIp)
+		fmt.Fprintf(stdOut, "wireport server has started with mTLS on host: %s\n", *hostNode.WGPublicIp)
 	} else {
 		fmt.Fprintf(stdOut, "wireport has been configured on the host: %s\n", *hostNode.WGPublicIp)
 	}
@@ -321,12 +335,38 @@ func (s *Service) ClientNew(nodes_repository *nodes.Repository, join_requests_re
 		}
 	} else {
 		// create join request
-		joinRequest, err := join_requests_repository.Create(types.UDPAddrMarshable{
+		joinRequestId := uuid.New().String()
+
+		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+			CommonName: joinRequestId,
+			Expiry:     config.Config.CertExpiry,
+		})
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
+			return
+		}
+
+		err = nodes_repository.SaveNode(hostNode)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
+			return
+		}
+
+		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(joinRequestId)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
+			return
+		}
+
+		joinRequest, err := join_requests_repository.Create(joinRequestId, types.UDPAddrMarshable{
 			UDPAddr: net.UDPAddr{
 				IP:   net.ParseIP(*hostNode.WGPublicIp),
 				Port: int(config.Config.ControlServerPort),
 			},
-		}, nil, types.NodeRoleClient)
+		}, nil, types.NodeRoleClient, clientCertBundle)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
@@ -348,10 +388,21 @@ func (s *Service) ClientNew(nodes_repository *nodes.Repository, join_requests_re
 	}
 }
 
-func (s *Service) Join(join_requests_service *join_requests.APIService, nodes_repository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
+func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
 	fmt.Fprintf(stdOut, "Joining wireport network with token: %s\n", joinToken)
 
-	response, err := join_requests_service.Join(joinToken)
+	joinRequest := &join_requests_types.JoinRequest{}
+
+	err := joinRequest.FromBase64(joinToken)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to parse join request: %v\n", err)
+		return
+	}
+
+	joinRequestsService := join_requests.NewAPIService(&joinRequest.ClientCertBundle)
+
+	response, err := joinRequestsService.Join(joinToken, joinRequest)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
@@ -507,12 +558,38 @@ func (s *Service) ServerNew(nodes_repository *nodes.Repository, join_requests_re
 		return
 	}
 
-	joinRequest, err := join_requests_repository.Create(types.UDPAddrMarshable{
+	joinRequestId := uuid.New().String()
+
+	err = hostNode.HostCertBundle.AddClient(mtls.Options{
+		CommonName: joinRequestId,
+		Expiry:     config.Config.CertExpiry,
+	})
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
+		return
+	}
+
+	err = nodes_repository.SaveNode(hostNode)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
+		return
+	}
+
+	clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(joinRequestId)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
+		return
+	}
+
+	joinRequest, err := join_requests_repository.Create(joinRequestId, types.UDPAddrMarshable{
 		UDPAddr: net.UDPAddr{
 			IP:   net.ParseIP(*hostNode.WGPublicIp),
 			Port: int(config.Config.ControlServerPort),
 		},
-	}, dockerSubnetPtr, types.NodeRoleServer)
+	}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)

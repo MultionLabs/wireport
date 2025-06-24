@@ -4,15 +4,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"time"
+	"wireport/internal/encryption/mtls"
 	nodeTypes "wireport/internal/nodes/types"
 )
 
 type JoinRequest struct {
-	Id                  string             `json:"id"`
-	EncryptionKeyBase64 string             `json:"key"`
-	DockerSubnet        *string            `json:"dockerSubnet"`
-	HostAddress         string             `json:"host"`
-	Role                nodeTypes.NodeRole `json:"role"`
+	Id                  string                `gorm:"type:text;primary_key" json:"id"`
+	EncryptionKeyBase64 string                `gorm:"type:text" json:"key"`
+	ClientCertBundle    mtls.FullClientBundle `gorm:"type:text;serializer:json" json:"clientCertBundle"`
+	DockerSubnet        *string               `gorm:"type:text" json:"dockerSubnet"`
+	HostAddress         string                `gorm:"type:text" json:"host"`
+	Role                nodeTypes.NodeRole    `gorm:"type:text" json:"role"`
 
 	CreatedAt time.Time
 }
