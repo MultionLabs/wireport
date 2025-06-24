@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"wireport/internal/logger"
 	"wireport/version"
@@ -75,6 +76,8 @@ type Configuration struct {
 
 	WireportHostContainerName  string
 	WireportHostContainerImage string
+
+	CertExpiry time.Duration
 }
 
 var DatabasePath = GetEnv("DATABASE_PATH", getDefaultDatabasePath("/app/wireport/wireport.db"))
@@ -103,4 +106,6 @@ var Config *Configuration = &Configuration{
 
 	WireportHostContainerName:  "wireport-host",
 	WireportHostContainerImage: "anybotsllc/wireport",
+
+	CertExpiry: time.Hour * 24 * 365 * 5, // 5 years
 }
