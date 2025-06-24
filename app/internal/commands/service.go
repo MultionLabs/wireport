@@ -215,16 +215,6 @@ func (s *Service) HostStart(join_requests_service *join_requests.APIService, nod
 		return
 	}
 
-	serverError := make(chan error, 1)
-
-	if !hostStartConfigureOnly {
-		go func() {
-			if err := http.ListenAndServe(fmt.Sprintf(":%d", config.Config.ControlServerPort), router); err != nil {
-				serverError <- err
-			}
-		}()
-	}
-
 	hostNode, err := nodes_repository.EnsureHostNode(types.IPMarshable{
 		IP: net.ParseIP(*publicIP),
 	}, config.Config.WGPublicPort, *publicIP, config.Config.ControlServerPort)
@@ -233,6 +223,16 @@ func (s *Service) HostStart(join_requests_service *join_requests.APIService, nod
 		fmt.Fprintf(errOut, "wireport host node start failed: %v\n", err)
 		fmt.Fprintf(errOut, "Failed to ensure host node: %v\n", err)
 		return
+	}
+
+	serverError := make(chan error, 1)
+
+	if !hostStartConfigureOnly {
+		go func() {
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", config.Config.ControlServerPort), router); err != nil {
+				serverError <- err
+			}
+		}()
 	}
 
 	publicServices := public_services_repository.GetAll()

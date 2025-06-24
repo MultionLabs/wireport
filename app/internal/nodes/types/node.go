@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"wireport/cmd/server/config"
+	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
 	public_services "wireport/internal/public-services"
 	templates "wireport/internal/templates"
@@ -84,6 +85,11 @@ type Node struct {
 	WGPublicPort *uint16 `gorm:"type:integer"`
 
 	ConnectionEncryptionKey *string `gorm:"type:text"`
+
+	HostPublicIp     string                 `gorm:"type:text;not null"`
+	HostPublicPort   uint16                 `gorm:"type:integer;not null"`
+	HostCertBundle   *mtls.FullHostBundle   `gorm:"type:text;serializer:json"`
+	ClientCertBundle *mtls.FullClientBundle `gorm:"type:text;serializer:json"`
 
 	DockerSubnet *IPNetMarshable `gorm:"type:text;serializer:json"`
 

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"time"
 
+	"wireport/cmd/server/config"
 	docker_utils "wireport/internal/docker-utils"
+	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
 
 	"wireport/internal/nodes/types"
@@ -101,12 +102,13 @@ func (r *Repository) updateNodes() error {
 				for _, clientServerNode := range clientServerNodes {
 					var allowedIPs []string
 
-					if clientServerNode.Role == types.NodeRoleServer {
+					switch clientServerNode.Role {
+					case types.NodeRoleServer:
 						allowedIPs = []string{
 							fmt.Sprintf(precisePeerIpTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP)),
 							clientServerNode.DockerSubnet.String(),
 						}
-					} else if clientServerNode.Role == types.NodeRoleClient {
+					case types.NodeRoleClient:
 						allowedIPs = []string{fmt.Sprintf(precisePeerIpTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP))}
 					}
 
@@ -126,10 +128,11 @@ func (r *Repository) updateNodes() error {
 				// PEERS
 				allowedIPs := []string{}
 
-				if node.Role == types.NodeRoleServer {
+				switch node.Role {
+				case types.NodeRoleServer:
 					dnsServerAddresses = append(dnsServerAddresses, dockerDNS)
 					allowedIPs = []string{serverPeerAllowedIps}
-				} else if node.Role == types.NodeRoleClient {
+				case types.NodeRoleClient:
 					allowedIPs = []string{
 						dockerAllAllowedSubnets,
 						fmt.Sprintf(imprecisePeerIpTemplate, types.IPToString(hostNode.WGConfig.Interface.Address.IP)),
@@ -189,6 +192,15 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		return nil, err
 	}
 
+	hostCertBundle, err := mtls.Generate(mtls.Options{
+		CommonName: "wireport host - server",
+		Expiry:     config.Config.CertExpiry,
+	}, config.Config.CertExpiry)
+
+	if err != nil {
+		return nil, err
+	}
+
 	var node *types.Node
 
 	err = r.db.Transaction(func(tx *gorm.DB) error {
@@ -229,10 +241,14 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 				},
 				Peers: hostPeers, // refreshed in updateNodes
 			},
-			WGPublicIp:    &hostWGPublicIp,
-			WGPublicPort:  &WGPublicPort,
-			DockerSubnet:  dockerSubnet,
-			IsCurrentNode: true, // only create on host node
+			WGPublicIp:       &hostWGPublicIp,
+			WGPublicPort:     &WGPublicPort,
+			HostPublicIp:     hostPublicIp,
+			HostPublicPort:   hostPublicPort,
+			HostCertBundle:   hostCertBundle,
+			ClientCertBundle: nil,
+			DockerSubnet:     dockerSubnet,
+			IsCurrentNode:    true, // only create on host node
 		}
 
 		result := tx.Create(node)
@@ -281,6 +297,25 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 			return errors.New("host node not found")
 		}
 
+		nodeId := uuid.New().String()
+
+		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+			CommonName: nodeId,
+			Expiry:     config.Config.CertExpiry,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		tx.Save(&hostNode)
+
+		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(nodeId)
+
+		if err != nil {
+			return err
+		}
+
 		if hostNode.WGPublicIp == nil || hostNode.WGPublicPort == nil {
 			return errors.New("host node public ip or port not found")
 		}
@@ -319,7 +354,7 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 		}
 
 		node = &types.Node{
-			ID:           uuid.New().String(),
+			ID:           nodeId,
 			Role:         types.NodeRoleServer,
 			WGPrivateKey: serverInterfaceWGPrivateKey,
 			WGPublicKey:  serverInterfaceWGPublicKey,
@@ -335,7 +370,11 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 					},
 				},
 			},
-			DockerSubnet: dockerSubnet,
+			HostPublicIp:     hostNode.HostPublicIp,
+			HostPublicPort:   hostNode.HostPublicPort,
+			HostCertBundle:   nil,
+			ClientCertBundle: clientCertBundle,
+			DockerSubnet:     dockerSubnet,
 		}
 
 		result := tx.Create(node)
@@ -402,8 +441,27 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			return errors.New("host node not found")
 		}
 
+		nodeId := uuid.New().String()
+
+		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+			CommonName: nodeId,
+			Expiry:     config.Config.CertExpiry,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		tx.Save(&hostNode)
+
+		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(nodeId)
+
+		if err != nil {
+			return err
+		}
+
 		node = &types.Node{
-			ID:           uuid.New().String(),
+			ID:           nodeId,
 			Role:         types.NodeRoleClient,
 			WGPrivateKey: clientInterfaceWGPrivateKey,
 			WGPublicKey:  clientInterfaceWGPublicKey,
@@ -419,9 +477,11 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 					},
 				},
 			},
-			DockerSubnet: nil,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			HostPublicIp:     hostNode.HostPublicIp,
+			HostPublicPort:   hostNode.HostPublicPort,
+			HostCertBundle:   nil,
+			ClientCertBundle: clientCertBundle,
+			DockerSubnet:     nil,
 		}
 
 		result := tx.Create(node)
