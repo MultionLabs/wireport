@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"wireport/internal/ssh"
+	"wireport/internal/utils"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -150,7 +151,14 @@ var StartHostCmd = &cobra.Command{
 	Short: "Start wireport in host mode",
 	Long:  `Start wireport in host mode. It will handle network connections and state management.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		commandsService.HostStart(join_requests_service, nodes_repository, public_services_repository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), HostStartConfigureOnly)
+		hostPublicIp, err := utils.GetPublicIP()
+
+		if err != nil {
+			cmd.PrintErrf("Error: %v\n", err)
+			return
+		}
+
+		commandsService.HostStart(*hostPublicIp, nodes_repository, public_services_repository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), HostStartConfigureOnly)
 	},
 }
 
