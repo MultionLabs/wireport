@@ -112,6 +112,22 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 				return
 			}
 
+			err = hostNode.HostCertBundle.RemoveClient(joinRequestFromDB.Id)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from host cert bundle", err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			err = nodes_repository.SaveNode(hostNode)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, "Failed to save host node", err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
 			network_apps.RestartNetworkApps(true, false, false)
 
 			// Schedule service restart for 10 seconds later to ensure coredns picks up the new server node
@@ -143,6 +159,22 @@ func handleJoinRequest(w http.ResponseWriter, r *http.Request, join_requests_rep
 
 			if err != nil {
 				logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveHostConfigs, err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			err = hostNode.HostCertBundle.RemoveClient(joinRequestFromDB.Id)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from host cert bundle", err)
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+
+			err = nodes_repository.SaveNode(hostNode)
+
+			if err != nil {
+				logger.Error("[%s] %v: %v", r.Method, "Failed to save host node", err)
 				http.Error(w, "", http.StatusBadRequest)
 				return
 			}
@@ -197,6 +229,12 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	public_services_repository := public_services.NewRepository(db)
 
 	mux.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			logger.Error("[%s] Join request is not over TLS; dropping request", r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
 		handleJoinRequest(w, r, join_requests_repository, nodes_repository, public_services_repository)
 	})
 }

@@ -192,9 +192,12 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		return nil, err
 	}
 
+	nodeId := uuid.New().String()
+
 	hostCertBundle, err := mtls.Generate(mtls.Options{
-		CommonName: "wireport host - server",
-		Expiry:     config.Config.CertExpiry,
+		CommonName:  nodeId,
+		Expiry:      config.Config.CertExpiry,
+		IPAddresses: []string{hostPublicIp},
 	}, config.Config.CertExpiry)
 
 	if err != nil {
@@ -226,7 +229,7 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		}
 
 		node = &types.Node{
-			ID:           uuid.New().String(),
+			ID:           nodeId,
 			Role:         types.NodeRoleHost,
 			WGPrivateKey: hostInterfaceWGPrivateKey,
 			WGPublicKey:  hostInterfaceWGPublicKey,

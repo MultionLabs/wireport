@@ -4,10 +4,10 @@ import (
 	"encoding/base64"
 	"time"
 	encryption_aes "wireport/internal/encryption/aes"
+	"wireport/internal/encryption/mtls"
 	"wireport/internal/join-requests/types"
 	nodeTypes "wireport/internal/nodes/types"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	}
 }
 
-func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string, role nodeTypes.NodeRole) (*types.JoinRequest, error) {
+func (r *Repository) Create(id string, hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string, role nodeTypes.NodeRole, clientCertBundle *mtls.FullClientBundle) (*types.JoinRequest, error) {
 	encryptionKey, err := encryption_aes.GenerateAESKey()
 
 	if err != nil {
@@ -31,8 +31,9 @@ func (r *Repository) Create(hostAddress nodeTypes.UDPAddrMarshable, dockerSubnet
 	encryptionKeyBase64 := base64.StdEncoding.EncodeToString(encryptionKey)
 
 	request := &types.JoinRequest{
-		Id:                  uuid.New().String(),
+		Id:                  id,
 		EncryptionKeyBase64: encryptionKeyBase64,
+		ClientCertBundle:    *clientCertBundle,
 		HostAddress:         hostAddress.String(),
 		Role:                role,
 		CreatedAt:           time.Now(),
