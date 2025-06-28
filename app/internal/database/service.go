@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"wireport/cmd/server/config"
-	join_requests_types "wireport/internal/join-requests/types"
+	join_requests_types "wireport/internal/joinrequests/types"
 	"wireport/internal/nodes/types"
-	public_services_types "wireport/internal/public-services"
+	"wireport/internal/publicservices"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -18,7 +18,8 @@ func InitDB() (*gorm.DB, error) {
 
 	// Ensure the parent directory exists
 	dbDir := filepath.Dir(config.Config.DatabasePath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
+
+	if err = os.MkdirAll(dbDir, 0755); err != nil {
 		return nil, err
 	}
 
@@ -30,7 +31,7 @@ func InitDB() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	err = db.AutoMigrate(&types.Node{}, &join_requests_types.JoinRequest{}, &public_services_types.PublicService{})
+	err = db.AutoMigrate(&types.Node{}, &join_requests_types.JoinRequest{}, &publicservices.PublicService{})
 
 	if err != nil {
 		return nil, err

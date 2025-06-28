@@ -1,11 +1,11 @@
-package join_requests
+package joinrequests
 
 import (
 	"encoding/base64"
 	"time"
 	encryption_aes "wireport/internal/encryption/aes"
 	"wireport/internal/encryption/mtls"
-	"wireport/internal/join-requests/types"
+	"wireport/internal/joinrequests/types"
 	nodeTypes "wireport/internal/nodes/types"
 
 	"gorm.io/gorm"
@@ -31,7 +31,7 @@ func (r *Repository) Create(id string, hostAddress nodeTypes.UDPAddrMarshable, d
 	encryptionKeyBase64 := base64.StdEncoding.EncodeToString(encryptionKey)
 
 	request := &types.JoinRequest{
-		Id:                  id,
+		ID:                  id,
 		EncryptionKeyBase64: encryptionKeyBase64,
 		ClientCertBundle:    *clientCertBundle,
 		HostAddress:         hostAddress.String(),

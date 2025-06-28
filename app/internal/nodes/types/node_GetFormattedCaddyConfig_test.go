@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	public_services "wireport/internal/public-services"
+	"wireport/internal/publicservices"
 )
 
 func removeSpaces(s string) string {
@@ -55,7 +55,7 @@ func TestNode_GetFormattedCaddyConfig(t *testing.T) {
 		},
 	}
 
-	publicServices := []*public_services.PublicService{
+	publicServices := []*publicservices.PublicService{
 		{
 			LocalProtocol:  "http",
 			LocalHost:      "localhost",

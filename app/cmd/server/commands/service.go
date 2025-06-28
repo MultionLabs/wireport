@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	public_services "wireport/internal/public-services"
+	"wireport/internal/publicservices"
 )
 
 var local string
@@ -69,8 +69,8 @@ var PublishServiceCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish a new public service",
 	Long:  `Publish a new public service that should be exposed to the internet`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.PrintErrf("This command can only be used on a host node\n")
 			return
 		}
@@ -89,7 +89,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServicePublish(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServicePublish(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -97,8 +97,8 @@ var UnpublishServiceCmd = &cobra.Command{
 	Use:   "unpublish",
 	Short: "Unpublish a public service",
 	Long:  `Unpublish a public service and make it no longer accessible from the internet`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.Printf("This command can only be used on a host node\n")
 			return
 		}
@@ -110,7 +110,7 @@ var UnpublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceUnpublish(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServiceUnpublish(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -118,13 +118,13 @@ var ListServiceCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all published services",
 	Long:  `List all published services (public and local addresses)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.Printf("This command can only be used on a host node\n")
 			return
 		}
 
-		commandsService.ServiceList(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServiceList(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -132,8 +132,8 @@ var NewParamsServiceCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Add a new parameter to a public service",
 	Long:  `Add a new parameter to a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy and so on)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.Printf("This command can only be used on a host node\n")
 			return
 		}
@@ -145,7 +145,7 @@ var NewParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamNew(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
+		commandsService.ServiceParamNew(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -153,8 +153,8 @@ var RemoveParamsServiceCmd = &cobra.Command{
 	Use:   "remove",
 	Short: "Remove a parameter from a public service",
 	Long:  `Remove a parameter from a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy and so on)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.Printf("This command can only be used on a host node\n")
 			return
 		}
@@ -166,7 +166,7 @@ var RemoveParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamRemove(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, public_services.PublicServiceParamTypeCaddyFreeText, paramValue)
+		commandsService.ServiceParamRemove(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -174,8 +174,8 @@ var ListParamsServiceCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all parameters of a public service",
 	Long:  `List all parameters of a public service (e.g., caddyfile directives)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if !nodes_repository.IsCurrentNodeHost() {
+	Run: func(cmd *cobra.Command, _ []string) {
+		if !nodesRepository.IsCurrentNodeHost() {
 			cmd.Printf("This command can only be used on a host node\n")
 			return
 		}
@@ -187,7 +187,7 @@ var ListParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamList(nodes_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServiceParamList(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 

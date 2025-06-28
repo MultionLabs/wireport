@@ -10,7 +10,7 @@ import (
 	"wireport/cmd/server/config"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
-	public_services "wireport/internal/public-services"
+	"wireport/internal/publicservices"
 	templates "wireport/internal/templates"
 
 	"github.com/aymerick/raymond"
@@ -56,8 +56,8 @@ func init() {
 		return parts[n-1]
 	})
 
-	raymond.RegisterHelper("replace", func(input string, old string, new string) string {
-		return strings.Replace(input, old, new, -1)
+	raymond.RegisterHelper("replace", func(input string, oldVal string, newVal string) string {
+		return strings.Replace(input, oldVal, newVal, -1)
 	})
 }
 
@@ -81,12 +81,12 @@ type Node struct {
 
 	WGConfig WGConfig `gorm:"type:text;serializer:json;uniqueIndex;not null"`
 
-	WGPublicIp   *string `gorm:"type:text"`
+	WGPublicIP   *string `gorm:"type:text"`
 	WGPublicPort *uint16 `gorm:"type:integer"`
 
 	ConnectionEncryptionKey *string `gorm:"type:text"`
 
-	HostPublicIp     string                 `gorm:"type:text;not null"`
+	HostPublicIP     string                 `gorm:"type:text;not null"`
 	HostPublicPort   uint16                 `gorm:"type:integer;not null"`
 	HostCertBundle   *mtls.FullHostBundle   `gorm:"type:text;serializer:json"`
 	ClientCertBundle *mtls.FullClientBundle `gorm:"type:text;serializer:json"`
@@ -182,7 +182,7 @@ func (n *Node) GetFormattedResolvConfig() (*string, error) {
 	return &configContents, nil
 }
 
-func (n *Node) GetFormattedCaddyConfig(publicServices []*public_services.PublicService) (*string, error) {
+func (n *Node) GetFormattedCaddyConfig(publicServices []*publicservices.PublicService) (*string, error) {
 	if n.Role != NodeRoleHost {
 		return nil, errors.New("only host nodes can have a Caddy config")
 	}
@@ -203,8 +203,10 @@ func (n *Node) GetFormattedCaddyConfig(publicServices []*public_services.PublicS
 	layer7PublicServices := []string{}
 
 	for _, service := range publicServices {
+		var entry string
+
 		if service.PublicProtocol == "tcp" || service.PublicProtocol == "udp" {
-			entry, err := service.AsCaddyConfigEntry()
+			entry, err = service.AsCaddyConfigEntry()
 
 			if err != nil {
 				return nil, err
@@ -212,7 +214,7 @@ func (n *Node) GetFormattedCaddyConfig(publicServices []*public_services.PublicS
 
 			layer4PublicServices = append(layer4PublicServices, entry)
 		} else {
-			entry, err := service.AsCaddyConfigEntry()
+			entry, err = service.AsCaddyConfigEntry()
 
 			if err != nil {
 				return nil, err
@@ -261,7 +263,7 @@ func (n *Node) GetFormattedCoreDNSConfig() (*string, error) {
 	return &configContents, nil
 }
 
-func (n *Node) SaveConfigs(publicServices []*public_services.PublicService, configsMustExist bool) error {
+func (n *Node) SaveConfigs(publicServices []*publicservices.PublicService, configsMustExist bool) error {
 	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
 		return errors.New("config saving is only relevant to host and server nodes")
 	}

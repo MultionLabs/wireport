@@ -22,7 +22,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatalf("generate failed: %v", err)
 	}
 
-	if err := bundle.AddClient(clientOpts); err != nil {
+	if err = bundle.AddClient(clientOpts); err != nil {
 		t.Fatalf("add client1 failed: %v", err)
 	}
 
@@ -31,13 +31,13 @@ func TestSerialization(t *testing.T) {
 		t.Fatalf("json marshal failed: %v", err)
 	}
 
-	var copy FullHostBundle
-	err = json.Unmarshal(data, &copy)
+	var objCopy FullHostBundle
+	err = json.Unmarshal(data, &objCopy)
 	if err != nil {
 		t.Fatalf("json unmarshal failed: %v", err)
 	}
 
-	if copy.RootCA.CertPEM != bundle.RootCA.CertPEM {
+	if objCopy.RootCA.CertPEM != bundle.RootCA.CertPEM {
 		t.Fatal("root CA cert mismatch")
 	}
 }
@@ -56,11 +56,11 @@ func TestMTLSCommunication(t *testing.T) {
 		t.Fatalf("generate failed: %v", err)
 	}
 
-	if err := bundle.AddClient(client1Opts); err != nil {
+	if err = bundle.AddClient(client1Opts); err != nil {
 		t.Fatalf("add client1 failed: %v", err)
 	}
 
-	if err := bundle.AddClient(client2Opts); err != nil {
+	if err = bundle.AddClient(client2Opts); err != nil {
 		t.Fatalf("add client2 failed: %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestSerializationAndHTTPSCommunication(t *testing.T) {
 		t.Fatalf("generate failed: %v", err)
 	}
 
-	if err := originalBundle.AddClient(client1Opts); err != nil {
+	if err = originalBundle.AddClient(client1Opts); err != nil {
 		t.Fatalf("add client1 failed: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestSerializationAndHTTPSCommunication(t *testing.T) {
 	}
 
 	// Add second client after unmarshalling
-	if err := unmarshaledBundle.AddClient(client2Opts); err != nil {
+	if err = unmarshaledBundle.AddClient(client2Opts); err != nil {
 		t.Fatalf("add client2 to unmarshaled bundle failed: %v", err)
 	}
 
@@ -191,7 +191,7 @@ func TestServerAndClientTLSConfigs(t *testing.T) {
 		t.Fatalf("generate failed: %v", err)
 	}
 
-	if err := bundle.AddClient(clientOpts); err != nil {
+	if err = bundle.AddClient(clientOpts); err != nil {
 		t.Fatalf("add client failed: %v", err)
 	}
 
