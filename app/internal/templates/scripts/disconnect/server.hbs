@@ -1,0 +1,9 @@
+docker stop {{ wireportServerContainerName }} && \
+ docker rm {{ wireportServerContainerName }} && \
+ docker run --rm -i \
+ 	-e DATABASE_PATH=/app/wireport/wireport.db \
+	-v /var/run/docker.sock:/var/run/docker.sock \
+	-v ~/.wireport/{{ wireportVersion }}/server/fs/data:/data \
+	-v ~/.wireport/{{ wireportVersion }}/server/fs/config:/config \
+	-v ~/.wireport/{{ wireportVersion }}/server/fs/app/wireport:/app/wireport \
+ {{ wireportServerContainerImage }} server disconnect

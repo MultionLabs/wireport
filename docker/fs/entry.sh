@@ -16,9 +16,10 @@ if [ "$1" = "host" ]; then
     chmod 600 /etc/caddy/Caddyfile
 
     mv /etc/service/iptables-server /etc/service-disabled/
+    mv /etc/service/wireport-server /etc/service-disabled/
 elif [ "$1" = "join" ]; then
     # server
-    echo "> Joining wireport network"
+    echo "> Joining wireport network as server"
 
     # disable some services
     mv /etc/service/caddy /etc/service-disabled/
@@ -27,10 +28,19 @@ elif [ "$1" = "join" ]; then
     
     wireport join "$2"
 elif [ "$1" = "server" ]; then
-    # server
-    echo "> Starting wireport server"
+    if [ "$2" = "start" ]; then
+        echo "> Starting wireport server"
 
-    wireport server start
+        mv /etc/service/wireport-host /etc/service-disabled/
+    elif [ "$2" = "disconnect" ]; then
+        echo "> Disconnecting wireport server"
+
+        wireport server disconnect
+        exit 0
+    else
+        echo "Invalid command. Use 'start' or 'disconnect'."
+        exit 1
+    fi
 else
     echo "Invalid command. Use 'host' or 'join <TOKEN>'."
     exit 1
