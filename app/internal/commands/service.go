@@ -87,7 +87,7 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 		fmt.Fprintf(stdOut, "✅ User has access\n")
 	} else {
 		fmt.Fprintf(stdOut, "❌ User lacks permissions\n")
-		fmt.Fprintf(stdOut, "💡 Add user to docker group or use sudo.\n\n")
+		fmt.Fprintf(stdOut, "💡 Add user to docker group.\n\n")
 		return
 	}
 	fmt.Fprintf(stdOut, "\n")
@@ -911,4 +911,121 @@ func (s *Service) ServiceParamList(_ *nodes.Repository, publicServicesRepository
 	}
 
 	fmt.Fprintf(stdOut, "\n")
+}
+
+func (s *Service) ServerStatus(creds *ssh.Credentials, stdOut io.Writer) {
+	sshService := ssh.NewService()
+
+	fmt.Fprintf(stdOut, "🔍 Checking wireport Server Status\n")
+	fmt.Fprintf(stdOut, "==================================\n\n")
+
+	// SSH Connection Check
+	fmt.Fprintf(stdOut, "📡 SSH Connection\n")
+	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	err := sshService.Connect(creds)
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	defer sshService.Close()
+	fmt.Fprintf(stdOut, "   Status: ✅ Connected\n\n")
+
+	// Docker Installation Check
+	fmt.Fprintf(stdOut, "🐳 Docker Installation\n")
+	dockerInstalled, err := sshService.IsDockerInstalled()
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	var dockerVersion string
+
+	if dockerInstalled {
+		fmt.Fprintf(stdOut, "   Status: ✅ Installed\n")
+
+		// Get Docker version
+		dockerVersion, err = sshService.GetDockerVersion()
+		if err == nil {
+			fmt.Fprintf(stdOut, "   Version: %s\n", dockerVersion)
+		}
+	} else {
+		fmt.Fprintf(stdOut, "   Status: ❌ Not Installed\n\n")
+		fmt.Fprintf(stdOut, "💡 Install Docker to continue with wireport setup.\n\n")
+		return
+	}
+
+	// Docker Permissions Check
+	fmt.Fprintf(stdOut, "   Permissions: ")
+	dockerAccessible, err := sshService.IsDockerAccessible()
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "❌ Check Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if dockerAccessible {
+		fmt.Fprintf(stdOut, "✅ User has access\n")
+	} else {
+		fmt.Fprintf(stdOut, "❌ User lacks permissions\n")
+		fmt.Fprintf(stdOut, "💡 Add user to docker group.\n\n")
+		return
+	}
+	fmt.Fprintf(stdOut, "\n")
+
+	// wireport Server Status Check
+	fmt.Fprintf(stdOut, "🚀 wireport Server Status\n")
+	isRunning, err := sshService.IsWireportServerContainerRunning()
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	var containerStatus string
+
+	if isRunning {
+		fmt.Fprintf(stdOut, "   Status: ✅ Running\n")
+
+		// Get detailed container status
+		containerStatus, err = sshService.GetWireportServerContainerStatus()
+		if err == nil && containerStatus != "" {
+			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
+		}
+	} else {
+		fmt.Fprintf(stdOut, "   Status: ❌ Not Running\n")
+
+		// Check if container exists but is stopped
+		containerStatus, err = sshService.GetWireportServerContainerStatus()
+		if err == nil && containerStatus != "" {
+			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
+		}
+
+		fmt.Fprintf(stdOut, "   💡 Run 'wireport server bootstrap %s@%s:%d' to install and start wireport server.\n", creds.Username, creds.Host, creds.Port)
+	}
+	fmt.Fprintf(stdOut, "\n")
+
+	// Docker Network Status Check
+	fmt.Fprintf(stdOut, "🌐 wireport Docker Network\n")
+	networkStatus, err := sshService.GetWireportNetworkStatus()
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if networkStatus != "" {
+		fmt.Fprintf(stdOut, "   Network: ✅ '%s' exists\n", strings.TrimSpace(networkStatus))
+	} else {
+		fmt.Fprintf(stdOut, "   Network: ❌ %s not found\n", config.Config.DockerNetworkName)
+		fmt.Fprintf(stdOut, "💡 Network will be created when wireport server starts.\n")
+	}
+	fmt.Fprintf(stdOut, "\n")
+
+	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
 }

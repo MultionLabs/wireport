@@ -32,6 +32,24 @@ var StartServerCmd = &cobra.Command{
 	},
 }
 
+var StatusServerCmd = &cobra.Command{
+	Use:   "status [username@hostname[:port]]",
+	Short: "Check wireport server node status",
+	Long:  `Check the status of wireport server node: SSH connection, Docker installation, and wireport server status.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		// Build credentials from positional argument or flags
+		creds, err := buildSSHCredentials(cmd, args, false)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.ServerStatus(creds, cmd.OutOrStdout())
+	},
+}
+
 func init() {
 	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
@@ -39,4 +57,7 @@ func init() {
 
 	ServerCmd.AddCommand(NewServerCmd)
 	ServerCmd.AddCommand(StartServerCmd)
+	ServerCmd.AddCommand(StatusServerCmd)
+
+	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }
