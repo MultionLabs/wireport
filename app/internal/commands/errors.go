@@ -1,4 +1,4 @@
-package join_requests
+package commands
 
 import "errors"
 

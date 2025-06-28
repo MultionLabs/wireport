@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var forceServerCreation bool = false
-var quietServerCreation bool = false
-var dockerSubnet string = ""
+var forceServerCreation = false
+var quietServerCreation = false
+var dockerSubnet = ""
 
 var ServerCmd = &cobra.Command{
 	Use:   "server",
@@ -18,8 +18,8 @@ var NewServerCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a new join-request for connecting a server to wireport network",
 	Long:  `Create a new join-request for connecting a server to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		commandsService.ServerNew(nodes_repository, join_requests_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), forceServerCreation, quietServerCreation, dockerSubnet)
+	Run: func(cmd *cobra.Command, _ []string) {
+		commandsService.ServerNew(nodesRepository, joinRequestsRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), forceServerCreation, quietServerCreation, dockerSubnet)
 	},
 }
 
@@ -27,8 +27,8 @@ var StartServerCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the wireport server",
 	Long:  `Start the wireport server. This command is only relevant for server nodes after they joined the network.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		commandsService.ServerStart(nodes_repository, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	Run: func(cmd *cobra.Command, _ []string) {
+		commandsService.ServerStart(nodesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 

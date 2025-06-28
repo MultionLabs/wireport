@@ -6,6 +6,7 @@ import (
 	"strings"
 	"syscall"
 
+	"wireport/internal/routes"
 	"wireport/internal/ssh"
 	"wireport/internal/utils"
 
@@ -13,7 +14,7 @@ import (
 	"golang.org/x/term"
 )
 
-var HostStartConfigureOnly bool = false
+var HostStartConfigureOnly = false
 
 func readPasswordSecurely(prompt string) (string, error) {
 	// readPasswordSecurely reads a password from the terminal without echoing
@@ -41,11 +42,17 @@ func parseSSHURL(sshURL string) (username, hostname string, port uint, err error
 
 		// Parse port
 		if portStr := parts[1]; portStr != "" {
-			if parsedPort, err := strconv.ParseUint(portStr, 10, 32); err != nil {
+			parsedPort, err := strconv.ParseUint(portStr, 10, 32)
+
+			if err != nil {
 				return "", "", 0, fmt.Errorf("invalid port number: %s", portStr)
-			} else {
-				port = uint(parsedPort)
 			}
+
+			if parsedPort > 65535 {
+				return "", "", 0, fmt.Errorf("port number must be between 0 and 65535")
+			}
+
+			port = uint(parsedPort)
 		}
 
 		sshURL = parts[0]
@@ -88,24 +95,28 @@ func buildSSHCredentials(cmd *cobra.Command, args []string) (*ssh.Credentials, e
 		creds.Port = port
 	} else {
 		// If no positional argument, try to get from database
-		hostNode, err := nodes_repository.GetHostNode()
+		hostNode, err := nodesRepository.GetHostNode()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get host node from database: %v", err)
 		}
 		if hostNode == nil {
 			return nil, fmt.Errorf("no host node found in database")
 		}
-		if hostNode.WGPublicIp == nil {
+		if hostNode.WGPublicIP == nil {
 			return nil, fmt.Errorf("host node public IP not found in database")
 		}
 
 		// Use the public IP as the host
-		creds.Host = *hostNode.WGPublicIp
+		creds.Host = *hostNode.WGPublicIP
 		creds.Port = 22 // Default SSH port
 
 		fmt.Printf("🔍 Using the bootstrapped host node: %s\n", creds.Host)
 		fmt.Printf("👤 Enter SSH username: ")
-		fmt.Scanln(&creds.Username)
+		_, err = fmt.Scanln(&creds.Username)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read SSH username: %v", err)
+		}
 
 		if creds.Username == "" {
 			return nil, fmt.Errorf("SSH username is required")
@@ -150,15 +161,17 @@ var StartHostCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start wireport in host mode",
 	Long:  `Start wireport in host mode. It will handle network connections and state management.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		hostPublicIp, err := utils.GetPublicIP()
+	Run: func(cmd *cobra.Command, _ []string) {
+		hostPublicIP, err := utils.GetPublicIP()
 
 		if err != nil {
 			cmd.PrintErrf("Error: %v\n", err)
 			return
 		}
 
-		commandsService.HostStart(*hostPublicIp, nodes_repository, public_services_repository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), HostStartConfigureOnly)
+		router := routes.Router(dbInstance)
+
+		commandsService.HostStart(*hostPublicIP, nodesRepository, publicServicesRepository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), HostStartConfigureOnly, router)
 	},
 }
 
@@ -195,7 +208,7 @@ var BootstrapHostCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.HostBootstrap(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.HostBootstrap(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
 	},
 }
 

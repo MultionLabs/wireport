@@ -1,4 +1,4 @@
-package public_services
+package publicservices
 
 import (
 	"strings"

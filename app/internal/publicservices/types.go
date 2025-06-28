@@ -1,4 +1,4 @@
-package public_services
+package publicservices
 
 import (
 	"fmt"
@@ -53,7 +53,8 @@ func (s *PublicService) AsCaddyConfigEntry() (result string, err error) {
 
 	result = fmt.Sprintf("# service publication: %s://%s:%d (public) -> %s://%s:%d (local)", s.PublicProtocol, s.PublicHost, s.PublicPort, s.LocalProtocol, s.LocalHost, s.LocalPort)
 
-	if s.PublicProtocol == "https" || s.PublicProtocol == "http" {
+	switch s.PublicProtocol {
+	case "https", "http":
 		publicHostname := fmt.Sprintf("%s://%s", s.PublicProtocol, s.PublicHost)
 
 		if s.PublicProtocol == "https" && s.PublicPort != 443 {
@@ -69,7 +70,7 @@ func (s *PublicService) AsCaddyConfigEntry() (result string, err error) {
     %s
 }
 `, publicHostname, reverseProxy)
-	} else if s.PublicProtocol == "udp" || s.PublicProtocol == "tcp" {
+	case "udp", "tcp":
 		upstream := strings.TrimSpace(fmt.Sprintf("upstream %s/%s:%d %s", s.LocalProtocol, s.LocalHost, s.LocalPort, formatBlockParams(s.Params, 16, 12)))
 
 		result = fmt.Sprintf(`

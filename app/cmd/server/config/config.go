@@ -62,10 +62,12 @@ type Configuration struct {
 	CaddyConfigPath     string
 	CoreDNSConfigPath   string
 
-	ResolvConfigTemplatePath        string
-	CaddyConfigTemplatePath         string
-	CoreDNSConfigTemplatePath       string
+	ResolvConfigTemplatePath  string
+	CaddyConfigTemplatePath   string
+	CoreDNSConfigTemplatePath string
+
 	BootstrapHostScriptTemplatePath string
+	NewClientScriptTemplatePath     string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -82,7 +84,7 @@ type Configuration struct {
 
 var DatabasePath = GetEnv("DATABASE_PATH", getDefaultDatabasePath("/app/wireport/wireport.db"))
 
-var Config *Configuration = &Configuration{
+var Config = &Configuration{
 	ControlServerPort: 4060,
 	DatabasePath:      DatabasePath,
 	WGPublicPort:      51820,
@@ -92,10 +94,12 @@ var Config *Configuration = &Configuration{
 	CaddyConfigPath:     GetEnv("CADDY_CONFIG_PATH", "/etc/caddy/Caddyfile"),
 	CoreDNSConfigPath:   GetEnv("COREDNS_CONFIG_PATH", "/etc/coredns/Corefile"),
 
-	ResolvConfigTemplatePath:        "configs/resolv/resolv.hbs",
-	CaddyConfigTemplatePath:         "configs/caddy/caddyfile.hbs",
-	CoreDNSConfigTemplatePath:       "configs/coredns/corefile.hbs",
+	ResolvConfigTemplatePath:  "configs/resolv/resolv.hbs",
+	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
+	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
+
 	BootstrapHostScriptTemplatePath: "scripts/bootstrap/host.hbs",
+	NewClientScriptTemplatePath:     "scripts/new/client.hbs",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",

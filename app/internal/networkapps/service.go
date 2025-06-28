@@ -1,4 +1,4 @@
-package network_apps
+package networkapps
 
 import (
 	"fmt"
@@ -20,9 +20,9 @@ func RestartNetworkApps(restartWireguard bool, restartCoreDNS bool, restartCaddy
 
 			if err != nil {
 				return fmt.Errorf("failed to restart wireguard: %v", err)
-			} else {
-				logger.Info("Wireguard restarted")
 			}
+
+			logger.Info("Wireguard restarted")
 		}
 	}
 
@@ -32,9 +32,9 @@ func RestartNetworkApps(restartWireguard bool, restartCoreDNS bool, restartCaddy
 
 			if err != nil {
 				return fmt.Errorf("failed to restart coredns: %v", err)
-			} else {
-				logger.Info("CoreDNS restarted")
 			}
+
+			logger.Info("CoreDNS restarted")
 		}
 	}
 
@@ -44,9 +44,9 @@ func RestartNetworkApps(restartWireguard bool, restartCoreDNS bool, restartCaddy
 
 			if err != nil {
 				return fmt.Errorf("failed to restart caddy: %v", err)
-			} else {
-				logger.Info("Caddy restarted")
 			}
+
+			logger.Info("Caddy restarted")
 		}
 	}
 

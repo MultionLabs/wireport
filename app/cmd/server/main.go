@@ -62,5 +62,9 @@ func main() {
 		rootCmd.PrintErrf("%v\n", err)
 	}
 
-	defer database.CloseDB(db)
+	defer func() {
+		if err := database.CloseDB(db); err != nil {
+			rootCmd.PrintErrf("Failed to close database: %v\n", err)
+		}
+	}()
 }

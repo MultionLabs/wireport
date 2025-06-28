@@ -4,8 +4,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var forceClientCreation bool = false
-var quietClientCreation bool = false
+var joinRequestClientCreation = false
+var quietClientCreation = false
+var waitClientCreation = false
 
 var ClientCmd = &cobra.Command{
 	Use:   "client",
@@ -17,14 +18,15 @@ var NewClientCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a new join-request for connecting a client to wireport network",
 	Long:  `Create a new join-request for connecting a client to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		commandsService.ClientNew(nodes_repository, join_requests_repository, public_services_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), forceClientCreation, quietClientCreation)
+	Run: func(cmd *cobra.Command, _ []string) {
+		commandsService.ClientNew(nodesRepository, joinRequestsRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), joinRequestClientCreation, quietClientCreation, waitClientCreation)
 	},
 }
 
 func init() {
-	NewClientCmd.Flags().BoolVarP(&forceClientCreation, "force", "f", false, "Force create a client node without generating a join request")
+	NewClientCmd.Flags().BoolVarP(&joinRequestClientCreation, "join-request", "j", false, "Create a join request for connecting a client to wireport network (by default, a client is created, bypassing the join request)")
 	NewClientCmd.Flags().BoolVarP(&quietClientCreation, "quiet", "q", false, "Quiet mode, don't print any output except for the join request token")
+	NewClientCmd.Flags().BoolVarP(&waitClientCreation, "wait", "w", false, "Wait for the client to be created (will check periodically whether there's a host and if a client can be created then)")
 
 	ClientCmd.AddCommand(NewClientCmd)
 }

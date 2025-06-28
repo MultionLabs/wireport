@@ -2,7 +2,7 @@ package routes
 
 import (
 	"net/http"
-	join_requests "wireport/internal/join-requests"
+	"wireport/internal/commands"
 
 	"gorm.io/gorm"
 )
@@ -10,7 +10,7 @@ import (
 func Router(db *gorm.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	join_requests.RegisterRoutes(mux, db)
+	commands.RegisterRoutes(mux, db)
 
 	return mux
 }
