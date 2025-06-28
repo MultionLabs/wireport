@@ -319,13 +319,56 @@ func (s *Service) IsWireportHostContainerRunning() (bool, error) {
 		return false, err
 	}
 
-	if result.ExitCode != 0 {
-		return false, nil
-	}
-
-	if result.ExitCode == 0 && strings.TrimSpace(result.Stdout) == "" {
+	if result.ExitCode != 0 || strings.TrimSpace(result.Stdout) == "" {
 		return false, nil
 	}
 
 	return true, nil
+}
+
+func (s *Service) IsWireportServerContainerRunning() (bool, error) {
+	dockerInstalled, err := s.IsDockerInstalled()
+
+	if err != nil {
+		return false, err
+	}
+
+	if !dockerInstalled {
+		return false, nil
+	}
+
+	dockerAccessible, err := s.IsDockerAccessible()
+
+	if err != nil {
+		return false, err
+	}
+
+	if !dockerAccessible {
+		return false, nil
+	}
+
+	checkContainerCmd := fmt.Sprintf("docker ps --filter name=^/%s$ --format '{{.Names}}'", config.Config.WireportServerContainerName)
+	result, err := s.executeCommand(checkContainerCmd)
+
+	if err != nil {
+		return false, err
+	}
+
+	if result.ExitCode != 0 || strings.TrimSpace(result.Stdout) == "" {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (s *Service) GetWireportServerContainerStatus() (string, error) {
+	checkContainerCmd := fmt.Sprintf("docker ps -a --filter name=^/%s$ --format '{{.Status}}'", config.Config.WireportServerContainerName)
+	result, err := s.executeCommand(checkContainerCmd)
+	if err != nil {
+		return "", err
+	}
+	if result.ExitCode != 0 {
+		return "", ErrFailedToGetContainerStatus
+	}
+	return result.Stdout, nil
 }

@@ -81,7 +81,7 @@ func parseSSHURL(sshURL string) (username, hostname string, port uint, err error
 }
 
 // buildSSHCredentials builds SSH credentials from positional arguments or database
-func buildSSHCredentials(cmd *cobra.Command, args []string) (*ssh.Credentials, error) {
+func buildSSHCredentials(cmd *cobra.Command, args []string, useHostNodeIfNoArgs bool) (*ssh.Credentials, error) {
 	creds := &ssh.Credentials{}
 
 	// Try to parse SSH URL from positional argument first
@@ -94,6 +94,10 @@ func buildSSHCredentials(cmd *cobra.Command, args []string) (*ssh.Credentials, e
 		creds.Host = hostname
 		creds.Port = port
 	} else {
+		if !useHostNodeIfNoArgs {
+			return nil, fmt.Errorf("SSH host is required. Use positional argument (username@hostname[:port])")
+		}
+
 		// If no positional argument, try to get from database
 		hostNode, err := nodesRepository.GetHostNode()
 		if err != nil {
@@ -184,7 +188,7 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
-		creds, err := buildSSHCredentials(cmd, args)
+		creds, err := buildSSHCredentials(cmd, args, true)
 
 		if err != nil {
 			cmd.PrintErrf("Error: %v\n", err)
@@ -201,7 +205,7 @@ var BootstrapHostCmd = &cobra.Command{
 	Long:  `Bootstrap wireport host node. It will install wireport on the host node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args)
+		creds, err := buildSSHCredentials(cmd, args, true)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)

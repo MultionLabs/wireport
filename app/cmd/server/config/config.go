@@ -76,8 +76,10 @@ type Configuration struct {
 	CaddyRestartCommand     string
 	CoreDNSRestartCommand   string
 
-	WireportHostContainerName  string
-	WireportHostContainerImage string
+	WireportHostContainerName    string
+	WireportHostContainerImage   string
+	WireportServerContainerName  string
+	WireportServerContainerImage string
 
 	CertExpiry time.Duration
 }
@@ -108,8 +110,10 @@ var Config = &Configuration{
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
 	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
 
-	WireportHostContainerName:  "wireport-host",
-	WireportHostContainerImage: "anybotsllc/wireport",
+	WireportHostContainerName:    "wireport-host",
+	WireportHostContainerImage:   "anybotsllc/wireport",
+	WireportServerContainerName:  "wireport-server",
+	WireportServerContainerImage: "anybotsllc/wireport",
 
 	CertExpiry: time.Hour * 24 * 365 * 5, // 5 years
 }
