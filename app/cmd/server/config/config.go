@@ -66,8 +66,10 @@ type Configuration struct {
 	CaddyConfigTemplatePath   string
 	CoreDNSConfigTemplatePath string
 
-	BootstrapHostScriptTemplatePath string
-	NewClientScriptTemplatePath     string
+	BootstrapHostScriptTemplatePath    string
+	NewClientScriptTemplatePath        string
+	ConnectServerScriptTemplatePath    string
+	DisconnectServerScriptTemplatePath string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -100,8 +102,10 @@ var Config = &Configuration{
 	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
 	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
 
-	BootstrapHostScriptTemplatePath: "scripts/bootstrap/host.hbs",
-	NewClientScriptTemplatePath:     "scripts/new/client.hbs",
+	BootstrapHostScriptTemplatePath:    "scripts/bootstrap/host.hbs",
+	NewClientScriptTemplatePath:        "scripts/new/client.hbs",
+	ConnectServerScriptTemplatePath:    "scripts/connect/server.hbs",
+	DisconnectServerScriptTemplatePath: "scripts/disconnect/server.hbs",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",

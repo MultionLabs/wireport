@@ -208,7 +208,7 @@ func (s *Service) GetWireportNetworkStatus() (string, error) {
 	return result.Stdout, nil
 }
 
-func (s *Service) InstallWireport() (bool, *string, error) {
+func (s *Service) InstallWireportHost() (bool, *string, error) {
 	isRunning, err := s.IsWireportHostContainerRunning()
 
 	if err != nil {
@@ -256,16 +256,26 @@ func (s *Service) InstallWireport() (bool, *string, error) {
 
 	// 2. generate new client
 
-	createClientCmdTemplate, err := templates.Scripts.ReadFile(config.Config.NewClientScriptTemplatePath)
+	clientJoinToken, err := s.createClientJoinToken()
 
 	if err != nil {
 		return false, nil, err
 	}
 
-	tpl, err = raymond.Parse(string(createClientCmdTemplate))
+	return true, clientJoinToken, nil
+}
+
+func (s *Service) createClientJoinToken() (*string, error) {
+	createClientCmdTemplate, err := templates.Scripts.ReadFile(config.Config.NewClientScriptTemplatePath)
 
 	if err != nil {
-		return false, nil, err
+		return nil, err
+	}
+
+	tpl, err := raymond.Parse(string(createClientCmdTemplate))
+
+	if err != nil {
+		return nil, err
 	}
 
 	createClientCmdStr, err := tpl.Exec(map[string]string{
@@ -273,22 +283,22 @@ func (s *Service) InstallWireport() (bool, *string, error) {
 	})
 
 	if err != nil {
-		return false, nil, err
+		return nil, err
 	}
 
-	cmdResult, err = s.executeCommand(createClientCmdStr)
+	cmdResult, err := s.executeCommand(createClientCmdStr)
 
 	if err != nil {
-		return false, nil, err
+		return nil, err
 	}
 
 	if cmdResult.ExitCode != 0 {
-		return false, nil, fmt.Errorf("failed to create client on the host: %s", cmdResult.Stderr)
+		return nil, fmt.Errorf("failed to create client on the host: %s", cmdResult.Stderr)
 	}
 
 	clientJoinToken := strings.TrimSpace(cmdResult.Stdout)
 
-	return true, &clientJoinToken, nil
+	return &clientJoinToken, nil
 }
 
 func (s *Service) IsWireportHostContainerRunning() (bool, error) {
@@ -371,4 +381,89 @@ func (s *Service) GetWireportServerContainerStatus() (string, error) {
 		return "", ErrFailedToGetContainerStatus
 	}
 	return result.Stdout, nil
+}
+
+func (s *Service) InstallWireportServer(serverJoinToken string) (bool, error) {
+	isRunning, err := s.IsWireportServerContainerRunning()
+
+	if err != nil {
+		return false, err
+	}
+
+	if isRunning {
+		fmt.Println("wireport server container is already running, skipping installation")
+		return true, nil
+	}
+
+	// Install wireport server using the connect script
+	installCmdTemplate, err := templates.Scripts.ReadFile(config.Config.ConnectServerScriptTemplatePath)
+
+	if err != nil {
+		return false, err
+	}
+
+	tpl, err := raymond.Parse(string(installCmdTemplate))
+
+	if err != nil {
+		return false, err
+	}
+
+	installCmdStr, err := tpl.Exec(map[string]string{
+		"wireportServerContainerName":  config.Config.WireportServerContainerName,
+		"wireportServerContainerImage": config.Config.WireportServerContainerImage,
+		"wireportVersion":              version.Version,
+		"serverJoinToken":              serverJoinToken,
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	cmdResult, err := s.executeCommand(installCmdStr)
+
+	if err != nil {
+		return false, err
+	}
+
+	if cmdResult.ExitCode != 0 {
+		return false, fmt.Errorf("failed to install wireport server: %s", cmdResult.Stderr)
+	}
+
+	return true, nil
+}
+
+func (s *Service) DisconnectWireportServer() (bool, error) {
+	stopCmdTemplate, err := templates.Scripts.ReadFile(config.Config.DisconnectServerScriptTemplatePath)
+
+	if err != nil {
+		return false, err
+	}
+
+	tpl, err := raymond.Parse(string(stopCmdTemplate))
+
+	if err != nil {
+		return false, err
+	}
+
+	stopCmdStr, err := tpl.Exec(map[string]string{
+		"wireportServerContainerName":  config.Config.WireportServerContainerName,
+		"wireportServerContainerImage": config.Config.WireportServerContainerImage,
+		"wireportVersion":              version.Version,
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	cmdResult, err := s.executeCommand(stopCmdStr)
+
+	if err != nil {
+		return false, err
+	}
+
+	if cmdResult.ExitCode != 0 {
+		return false, fmt.Errorf("failed to stop wireport server: %s", cmdResult.Stderr)
+	}
+
+	return true, nil
 }
