@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -187,7 +188,7 @@ func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut
 	fmt.Fprintf(stdOut, "📦 Installing wireport...\n")
 	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	_, clientJoinToken, err := sshService.InstallWireport()
+	_, clientJoinToken, err := sshService.InstallWireportHost()
 
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Installation Failed\n")
@@ -751,6 +752,18 @@ func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Write
 	}
 
 	fmt.Fprintf(stdOut, "Server node configs saved to the disk successfully\n")
+
+	for {
+		fmt.Fprintf(stdOut, "Ensuring docker network is attached to all containers\n")
+
+		err = dockerutils.EnsureDockerNetworkIsAttachedToAllContainers()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to ensure docker network is attached to all containers: %v\n", err)
+		}
+
+		time.Sleep(time.Second * 30)
+	}
 }
 
 func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer,
@@ -1028,4 +1041,154 @@ func (s *Service) ServerStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	fmt.Fprintf(stdOut, "\n")
 
 	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
+}
+
+func (s *Service) ServerConnect(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
+	sshService := ssh.NewService()
+
+	fmt.Fprintf(stdOut, "🚀 wireport Server Connect\n")
+	fmt.Fprintf(stdOut, "=========================\n\n")
+
+	// SSH Connection
+	fmt.Fprintf(stdOut, "📡 Connecting to server...\n")
+	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	err := sshService.Connect(creds)
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	defer sshService.Close()
+	fmt.Fprintf(stdOut, "   Status: ✅ Connected\n\n")
+
+	stdOutWriter := bytes.NewBufferString("")
+	errOutWriter := bytes.NewBufferString("")
+
+	s.ServerNew(nodesRepository, joinRequestsRepository, stdOutWriter, errOutWriter, false, true, dockerSubnet)
+
+	if len(errOutWriter.String()) > 0 || len(stdOutWriter.String()) == 0 {
+		fmt.Fprintf(errOut, "%s\n", errOutWriter.String())
+		fmt.Fprintf(stdOut, "%s\n", stdOutWriter.String())
+		fmt.Fprintf(stdOut, "❌ Failed to connect wireport server to the network\n")
+		return
+	}
+
+	serverJoinToken := stdOutWriter.String()
+
+	// Connection
+	fmt.Fprintf(stdOut, "📦 Connecting wireport server to the network...\n")
+	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	_, err = sshService.InstallWireportServer(serverJoinToken)
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Connection Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "   Status: ✅ Connection Completed\n\n")
+
+	// Verification
+	fmt.Fprintf(stdOut, "✅ Verifying connection...\n")
+	installationConfirmed, err := sshService.IsWireportServerContainerRunning()
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if installationConfirmed {
+		fmt.Fprintf(stdOut, "   Status: ✅ Verified Successfully, Running\n")
+		fmt.Fprintf(stdOut, "   🎉 wireport server has been successfully connected to the network!\n\n")
+	} else {
+		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
+		fmt.Fprintf(stdOut, "   💡 wireport server container was not found running after connection.\n\n")
+	}
+
+	fmt.Fprintf(stdOut, "✨ Server connection process completed!\n")
+}
+
+func (s *Service) ServerDisconnect(nodesRepository *nodes.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	if currentNode.Role == node_types.NodeRoleServer {
+		err = dockerutils.DetachDockerNetworkFromAllContainers()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Error disconnecting docker network: %v\n", err)
+			return
+		}
+
+		err = dockerutils.RemoveDockerNetwork()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Error removing docker network: %v\n", err)
+			return
+		}
+
+		return
+	}
+
+	if creds == nil {
+		fmt.Fprintf(errOut, "Error: SSH credentials are required\n")
+		return
+	}
+
+	sshService := ssh.NewService()
+
+	fmt.Fprintf(stdOut, "🚀 wireport Server Disconnect\n")
+	fmt.Fprintf(stdOut, "==========================\n\n")
+
+	// SSH Connection
+	fmt.Fprintf(stdOut, "📡 Connecting to server...\n")
+	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	err = sshService.Connect(creds)
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	defer sshService.Close()
+	fmt.Fprintf(stdOut, "   Status: ✅ Connected\n\n")
+
+	// Check if server is running
+	isRunning, err := sshService.IsWireportServerContainerRunning()
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if !isRunning {
+		fmt.Fprintf(stdOut, "   Status: ❌ Not Running\n")
+		fmt.Fprintf(stdOut, "   💡 wireport server is not running\n\n")
+		return
+	}
+
+	// Disconnect wireport server
+	fmt.Fprintf(stdOut, "🛑 Disconnecting wireport server...\n")
+	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	_, err = sshService.DisconnectWireportServer()
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Disconnect Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "   Status: ✅ Disconnected\n\n")
+
+	fmt.Fprintf(stdOut, "✨ Server disconnect process completed!\n")
 }

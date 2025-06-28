@@ -8,8 +8,10 @@ import (
 	"wireport/internal/logger"
 	"wireport/internal/nodes/types"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 )
 
 func getRunningContainerID() (*string, error) {
@@ -132,6 +134,113 @@ func EnsureDockerNetworkExistsAndAttached(dockerSubnet *types.IPNetMarshable) er
 	}
 
 	logger.Info("Container connected to network")
+
+	defer cli.Close()
+
+	return nil
+}
+
+func EnsureDockerNetworkIsAttachedToAllContainers() error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return err
+	}
+
+	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
+		All: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, container := range containers {
+		err = cli.NetworkConnect(context.Background(), config.Config.DockerNetworkName, container.ID, &network.EndpointSettings{})
+
+		if err != nil {
+			if errdefs.IsConflict(err) || errdefs.IsForbidden(err) {
+				continue
+			}
+
+			return err
+		}
+
+		logger.Info("Container %s is now connected to network %s", container.Names[0], config.Config.DockerNetworkName)
+	}
+
+	defer cli.Close()
+
+	return nil
+}
+
+func DetachDockerNetworkFromAllContainers() error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return err
+	}
+
+	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
+		All: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, container := range containers {
+		// If the container is not connected to the target network we can safely skip it.
+		if container.NetworkSettings != nil {
+			if _, ok := container.NetworkSettings.Networks[config.Config.DockerNetworkName]; !ok {
+				continue
+			}
+		}
+
+		err = cli.NetworkDisconnect(context.Background(), config.Config.DockerNetworkName, container.ID, true)
+
+		if err != nil {
+			if errdefs.IsNotFound(err) || errdefs.IsForbidden(err) || errdefs.IsConflict(err) {
+				continue
+			}
+
+			return err
+		}
+
+		logger.Info("Container %s is now disconnected from network %s", container.Names[0], config.Config.DockerNetworkName)
+	}
+
+	defer cli.Close()
+
+	return nil
+}
+
+func RemoveDockerNetwork() error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return err
+	}
+
+	// check if network exists
+
+	_, err = cli.NetworkInspect(context.Background(), config.Config.DockerNetworkName, network.InspectOptions{})
+
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil
+		}
+
+		return err
+	}
+
+	// remove network
+
+	err = cli.NetworkRemove(context.Background(), config.Config.DockerNetworkName)
+
+	if err != nil {
+		return err
+	}
 
 	defer cli.Close()
 

@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"wireport/internal/nodes/types"
+	"wireport/internal/ssh"
+
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +53,55 @@ var StatusServerCmd = &cobra.Command{
 	},
 }
 
+var ConnectServerCmd = &cobra.Command{
+	Use:   "connect",
+	Short: "Connect to a wireport server node",
+	Long:  `Connect to a wireport server node. This command is only relevant for server nodes after they joined the network.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		creds, err := buildSSHCredentials(cmd, args, false)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		if dockerSubnet != "" {
+			// validate the subnet format
+			_, err := types.ParseIPNetMarshable(dockerSubnet, true)
+
+			if err != nil {
+				cmd.PrintErrf("Failed to parse Docker subnet: %v\n", err)
+				return
+			}
+		}
+
+		commandsService.ServerConnect(nodesRepository, joinRequestsRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
+	},
+}
+
+var DisconnectServerCmd = &cobra.Command{
+	Use:   "disconnect",
+	Short: "Disconnect from a wireport server node",
+	Long:  `Disconnect from a wireport server node. This command is only relevant for server nodes after they joined the network.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		var creds *ssh.Credentials
+
+		if len(args) > 0 {
+			var err error
+			creds, err = buildSSHCredentials(cmd, args, false)
+
+			if err != nil {
+				cmd.PrintErrf("❌ Error: %v\n", err)
+				return
+			}
+		}
+
+		commandsService.ServerDisconnect(nodesRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	},
+}
+
 func init() {
 	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
@@ -58,6 +110,13 @@ func init() {
 	ServerCmd.AddCommand(NewServerCmd)
 	ServerCmd.AddCommand(StartServerCmd)
 	ServerCmd.AddCommand(StatusServerCmd)
+	ServerCmd.AddCommand(ConnectServerCmd)
+	ServerCmd.AddCommand(DisconnectServerCmd)
 
 	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+
+	ConnectServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	ConnectServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
+
+	DisconnectServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }
