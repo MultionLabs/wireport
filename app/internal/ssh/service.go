@@ -31,8 +31,8 @@ func (s *Service) Connect(creds *Credentials) error {
 
 	// Determine chosen authentication method
 	if creds.PrivateKeyPath != "" {
-		// Use private key file
-		keyBytes, err := os.ReadFile(creds.PrivateKeyPath)
+		var keyBytes []byte
+		keyBytes, err = os.ReadFile(creds.PrivateKeyPath)
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateAuth, err)
 		}
@@ -124,10 +124,21 @@ func (s *Service) executeCommand(command string) (*CommandResult, error) {
 		return nil, ErrSSHConnectionNotEstablished
 	}
 
-	stdout, err := s.client.Run(command)
+	// Use Command method to get separate stdout and stderr
+	cmd, err := s.client.Command(command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create command: %w", err)
+	}
+
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
 
 	result := &CommandResult{
-		Stdout: strings.TrimSpace(string(stdout)),
+		Stdout: strings.TrimSpace(stdout.String()),
+		Stderr: strings.TrimSpace(stderr.String()),
 	}
 
 	if err != nil {
@@ -197,28 +208,31 @@ func (s *Service) GetWireportNetworkStatus() (string, error) {
 	return result.Stdout, nil
 }
 
-func (s *Service) InstallWireport() (bool, error) {
+func (s *Service) InstallWireport() (bool, *string, error) {
 	isRunning, err := s.IsWireportHostContainerRunning()
 
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	if isRunning {
-		return true, nil
+		fmt.Println("wireport host container is already running, skipping installation")
+		return true, nil, nil
 	}
 
 	installCmdTemplate, err := templates.Scripts.ReadFile(config.Config.BootstrapHostScriptTemplatePath)
 
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	tpl, err := raymond.Parse(string(installCmdTemplate))
 
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
+
+	// 1. install and start wireport
 
 	installCmdStr, err := tpl.Exec(map[string]string{
 		"wireportHostContainerName":  config.Config.WireportHostContainerName,
@@ -227,20 +241,54 @@ func (s *Service) InstallWireport() (bool, error) {
 	})
 
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	cmdResult, err := s.executeCommand(installCmdStr)
 
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	if cmdResult.ExitCode != 0 {
-		return false, nil
+		return false, nil, fmt.Errorf("failed to install wireport: %s", cmdResult.Stderr)
 	}
 
-	return true, nil
+	// 2. generate new client
+
+	createClientCmdTemplate, err := templates.Scripts.ReadFile(config.Config.NewClientScriptTemplatePath)
+
+	if err != nil {
+		return false, nil, err
+	}
+
+	tpl, err = raymond.Parse(string(createClientCmdTemplate))
+
+	if err != nil {
+		return false, nil, err
+	}
+
+	createClientCmdStr, err := tpl.Exec(map[string]string{
+		"wireportHostContainerName": config.Config.WireportHostContainerName,
+	})
+
+	if err != nil {
+		return false, nil, err
+	}
+
+	cmdResult, err = s.executeCommand(createClientCmdStr)
+
+	if err != nil {
+		return false, nil, err
+	}
+
+	if cmdResult.ExitCode != 0 {
+		return false, nil, fmt.Errorf("failed to create client on the host: %s", cmdResult.Stderr)
+	}
+
+	clientJoinToken := strings.TrimSpace(cmdResult.Stdout)
+
+	return true, &clientJoinToken, nil
 }
 
 func (s *Service) IsWireportHostContainerRunning() (bool, error) {

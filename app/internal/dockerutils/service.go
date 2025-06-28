@@ -1,4 +1,4 @@
-package docker_utils
+package dockerutils
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func EnsureDockerNetworkExistsAndAttached(dockerSubnet *types.IPNetMarshable) er
 		if strings.Contains(err.Error(), "not found") {
 			logger.Info("Network does not exist, creating network %s with subnet %s", config.Config.DockerNetworkName, dockerSubnet.String())
 
-			_, err := cli.NetworkCreate(context.Background(), config.Config.DockerNetworkName, network.CreateOptions{
+			_, err = cli.NetworkCreate(context.Background(), config.Config.DockerNetworkName, network.CreateOptions{
 				Driver: config.Config.DockerNetworkDriver,
 				IPAM: &network.IPAM{
 					Config: []network.IPAMConfig{

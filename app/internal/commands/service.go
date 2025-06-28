@@ -1,22 +1,24 @@
 package commands
 
 import (
-	"encoding/json"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 	"wireport/cmd/server/config"
-	docker_utils "wireport/internal/docker-utils"
+	commandstypes "wireport/internal/commands/types"
+	"wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
-	join_requests "wireport/internal/join-requests"
-	join_requests_types "wireport/internal/join-requests/types"
-	network_apps "wireport/internal/network-apps"
+	"wireport/internal/joinrequests"
+	joinrequeststypes "wireport/internal/joinrequests/types"
+	"wireport/internal/networkapps"
 	"wireport/internal/nodes"
 	"wireport/internal/nodes/types"
-	public_services "wireport/internal/public-services"
-	"wireport/internal/routes"
+	node_types "wireport/internal/nodes/types"
+	"wireport/internal/publicservices"
 	"wireport/internal/ssh"
 
 	"github.com/google/uuid"
@@ -48,17 +50,20 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	// Docker Installation Check
 	fmt.Fprintf(stdOut, "🐳 Docker Installation\n")
 	dockerInstalled, err := sshService.IsDockerInstalled()
+
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
 		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
 
+	var dockerVersion string
+
 	if dockerInstalled {
 		fmt.Fprintf(stdOut, "   Status: ✅ Installed\n")
 
 		// Get Docker version
-		dockerVersion, err := sshService.GetDockerVersion()
+		dockerVersion, err = sshService.GetDockerVersion()
 		if err == nil {
 			fmt.Fprintf(stdOut, "   Version: %s\n", dockerVersion)
 		}
@@ -71,6 +76,7 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	// Docker Permissions Check
 	fmt.Fprintf(stdOut, "   Permissions: ")
 	dockerAccessible, err := sshService.IsDockerAccessible()
+
 	if err != nil {
 		fmt.Fprintf(stdOut, "❌ Check Failed\n")
 		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
@@ -95,11 +101,13 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 		return
 	}
 
+	var containerStatus string
+
 	if isRunning {
 		fmt.Fprintf(stdOut, "   Status: ✅ Running\n")
 
 		// Get detailed container status
-		containerStatus, err := sshService.GetWireportContainerStatus()
+		containerStatus, err = sshService.GetWireportContainerStatus()
 		if err == nil && containerStatus != "" {
 			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
 		}
@@ -107,7 +115,7 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 		fmt.Fprintf(stdOut, "   Status: ❌ Not Running\n")
 
 		// Check if container exists but is stopped
-		containerStatus, err := sshService.GetWireportContainerStatus()
+		containerStatus, err = sshService.GetWireportContainerStatus()
 		if err == nil && containerStatus != "" {
 			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
 		}
@@ -136,7 +144,7 @@ func (s *Service) HostStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
 }
 
-func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🚀 wireport Host Bootstrap\n")
@@ -179,7 +187,8 @@ func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut
 	fmt.Fprintf(stdOut, "📦 Installing wireport...\n")
 	fmt.Fprintf(stdOut, "   Host: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	_, err = sshService.InstallWireport()
+	_, clientJoinToken, err := sshService.InstallWireport()
+
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Installation Failed\n")
 		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
@@ -205,15 +214,20 @@ func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut
 		fmt.Fprintf(stdOut, "   💡 wireport container was not found running after installation.\n\n")
 	}
 
+	if clientJoinToken != nil {
+		fmt.Fprintf(stdOut, "   🔑 Applying Client Join Token: %s...\n", (*clientJoinToken)[:100])
+
+		s.Join(nodesRepository, stdOut, errOut, *clientJoinToken)
+	}
+
 	fmt.Fprintf(stdOut, "✨ Bootstrap process completed!\n")
 }
 
-func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, dbInstance *gorm.DB, stdOut io.Writer, errOut io.Writer, hostStartConfigureOnly bool) {
-	router := routes.Router(dbInstance)
-
-	hostNode, err := nodes_repository.EnsureHostNode(types.IPMarshable{
-		IP: net.ParseIP(hostPublicIp),
-	}, config.Config.WGPublicPort, hostPublicIp, config.Config.ControlServerPort)
+func (s *Service) HostStart(hostPublicIP string, nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository,
+	_ *gorm.DB, stdOut io.Writer, errOut io.Writer, hostStartConfigureOnly bool, router http.Handler) {
+	hostNode, err := nodesRepository.EnsureHostNode(types.IPMarshable{
+		IP: net.ParseIP(hostPublicIP),
+	}, config.Config.WGPublicPort, hostPublicIP, config.Config.ControlServerPort)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "wireport host node start failed: %v\n", err)
@@ -230,7 +244,10 @@ func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Reposit
 
 	if !hostStartConfigureOnly {
 		go func() {
-			tlsConfig, err := hostNode.HostCertBundle.GetServerTLSConfig()
+			var tlsConfig *tls.Config
+
+			tlsConfig, err = hostNode.HostCertBundle.GetServerTLSConfig()
+
 			if err != nil {
 				serverError <- fmt.Errorf("failed to get TLS config: %v", err)
 				return
@@ -243,13 +260,13 @@ func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Reposit
 				TLSConfig: tlsConfig,
 			}
 
-			if err := server.ListenAndServeTLS("", ""); err != nil {
+			if err = server.ListenAndServeTLS("", ""); err != nil {
 				serverError <- err
 			}
 		}()
 	}
 
-	publicServices := public_services_repository.GetAll()
+	publicServices := publicServicesRepository.GetAll()
 
 	err = hostNode.SaveConfigs(publicServices, true)
 
@@ -259,9 +276,9 @@ func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Reposit
 	}
 
 	if !hostStartConfigureOnly {
-		fmt.Fprintf(stdOut, "wireport server has started with mTLS on host: %s\n", *hostNode.WGPublicIp)
+		fmt.Fprintf(stdOut, "wireport server has started with mTLS on host: %s\n", *hostNode.WGPublicIP)
 	} else {
-		fmt.Fprintf(stdOut, "wireport has been configured on the host: %s\n", *hostNode.WGPublicIp)
+		fmt.Fprintf(stdOut, "wireport has been configured on the host: %s\n", *hostNode.WGPublicIP)
 	}
 
 	if !hostStartConfigureOnly {
@@ -272,126 +289,189 @@ func (s *Service) HostStart(hostPublicIp string, nodes_repository *nodes.Reposit
 	}
 }
 
-func (s *Service) ClientNew(nodes_repository *nodes.Repository, join_requests_repository *join_requests.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, forceClientCreation bool, quietClientCreation bool) {
-	totalWireguardClients, availableWireguardClients, err := nodes_repository.TotalAvailableWireguardClients()
+func (s *Service) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, publicServicesRepository *publicservices.Repository,
+	stdOut io.Writer, errOut io.Writer, joinRequestClientCreation bool, quietClientCreation bool, waitClientCreation bool) {
 
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to count available wireguard clients: %v\n", err)
-		return
-	}
+	currentNode, err := nodesRepository.GetCurrentNode()
 
-	totalJoinRequests := join_requests_repository.CountAll()
-
-	if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
-		fmt.Fprintf(errOut, "No available wireguard client slots. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some wireguard client slots.\n", totalWireguardClients, totalJoinRequests)
-		return
-	}
-
-	hostNode, err := nodes_repository.GetHostNode()
-
-	if err != nil || hostNode == nil {
-		fmt.Fprintf(errOut, "Failed to get host: %v\n", err)
-		return
-	}
-
-	if forceClientCreation {
-		if !quietClientCreation {
-			fmt.Fprintf(stdOut, "Force flag detected, creating client node without generating a join request\n")
-		}
-
-		clientNode, err := nodes_repository.CreateClient()
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to create client: %v\n", err)
+	if err != nil || currentNode == nil {
+		if !waitClientCreation {
+			fmt.Fprintf(errOut, "Current node not found, skipping client creation\n")
 			return
 		}
 
-		if !quietClientCreation {
-			fmt.Fprintf(stdOut, "Client node created without join request\n")
+		// wait for 10 seconds with retries every 1 second
+		for range 10 {
+			time.Sleep(1 * time.Second)
+
+			currentNode, err = nodesRepository.GetCurrentNode()
+
+			if err == nil && currentNode != nil {
+				if !quietClientCreation {
+					fmt.Fprintf(stdOut, "Current node found, creating client\n")
+				}
+
+				break
+			}
 		}
 
-		// save configs & restart services
-		publicServices := public_services_repository.GetAll()
+		if err != nil || currentNode == nil {
+			fmt.Fprintf(errOut, "Failed to get current node after waiting and multiple retries: %v\n", err)
+			return
+		}
+	}
 
-		err = hostNode.SaveConfigs(publicServices, false)
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ClientNew(joinRequestClientCreation, quietClientCreation, waitClientCreation)
 
 		if err != nil {
-			fmt.Fprintf(errOut, "Failed to save host configs: %v\n", err)
+			fmt.Fprintf(errOut, "Failed to create client on the host: %v\n", err)
+
 			return
 		}
 
-		err = network_apps.RestartNetworkApps(true, false, false)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to restart services: %v\n", err)
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
 		}
 
-		wireguardConfig, _ := clientNode.GetFormattedWireguardConfig()
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
 
-		if !quietClientCreation {
-			fmt.Fprintf(stdOut, "New client created, use the following wireguard config on your client node to connect to the network:\n\n%s\n", *wireguardConfig)
+		return
+	case types.NodeRoleHost:
+		totalWireguardClients, availableWireguardClients, err := nodesRepository.TotalAvailableWireguardClients()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to count available wireguard clients: %v\n", err)
+			return
+		}
+
+		totalJoinRequests := joinRequestsRepository.CountAll()
+
+		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
+			fmt.Fprintf(errOut, "No available wireguard client slots. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some wireguard client slots.\n", totalWireguardClients, totalJoinRequests)
+			return
+		}
+
+		if joinRequestClientCreation {
+			// create join request
+			joinRequestID := uuid.New().String()
+
+			err = currentNode.HostCertBundle.AddClient(mtls.Options{
+				CommonName: joinRequestID,
+				Expiry:     config.Config.CertExpiry,
+			})
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
+				return
+			}
+
+			err = nodesRepository.SaveNode(currentNode)
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
+				return
+			}
+
+			var clientCertBundle *mtls.FullClientBundle
+			clientCertBundle, err = currentNode.HostCertBundle.GetClientBundlePublic(joinRequestID)
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
+				return
+			}
+
+			var joinRequest *joinrequeststypes.JoinRequest
+
+			joinRequest, err = joinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
+				UDPAddr: net.UDPAddr{
+					IP:   net.ParseIP(*currentNode.WGPublicIP),
+					Port: int(config.Config.ControlServerPort),
+				},
+			}, nil, types.NodeRoleClient, clientCertBundle)
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
+				return
+			}
+
+			var joinRequestBase64 *string
+
+			joinRequestBase64, err = joinRequest.ToBase64()
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
+				return
+			}
+
+			if !quietClientCreation {
+				fmt.Fprintf(stdOut, "wireport:\n\nNew client created, use the following join request to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
+			} else {
+				fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
+			}
 		} else {
-			fmt.Fprintf(stdOut, "%s\n", *wireguardConfig)
-		}
-	} else {
-		// create join request
-		joinRequestId := uuid.New().String()
+			if !quietClientCreation {
+				fmt.Fprintf(stdOut, "Join request flag not detected, creating client node without generating a join request\n")
+			}
 
-		err = hostNode.HostCertBundle.AddClient(mtls.Options{
-			CommonName: joinRequestId,
-			Expiry:     config.Config.CertExpiry,
-		})
+			var clientNode *node_types.Node
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
-			return
-		}
+			clientNode, err = nodesRepository.CreateClient()
 
-		err = nodes_repository.SaveNode(hostNode)
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to create client: %v\n", err)
+				return
+			}
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
-			return
-		}
+			if !quietClientCreation {
+				fmt.Fprintf(stdOut, "Client node created without join request\n")
+			}
 
-		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(joinRequestId)
+			// save configs & restart services
+			publicServices := publicServicesRepository.GetAll()
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
-			return
-		}
+			currentNode, err = nodesRepository.GetCurrentNode()
 
-		joinRequest, err := join_requests_repository.Create(joinRequestId, types.UDPAddrMarshable{
-			UDPAddr: net.UDPAddr{
-				IP:   net.ParseIP(*hostNode.WGPublicIp),
-				Port: int(config.Config.ControlServerPort),
-			},
-		}, nil, types.NodeRoleClient, clientCertBundle)
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to get a fresh current node instance after creating client: %v\n", err)
+				return
+			}
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
-			return
-		}
+			err = currentNode.SaveConfigs(publicServices, false)
 
-		joinRequestBase64, err := joinRequest.ToBase64()
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to save host configs: %v\n", err)
+				return
+			}
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
-			return
-		}
+			err = networkapps.RestartNetworkApps(true, false, false)
 
-		if !quietClientCreation {
-			fmt.Fprintf(stdOut, "wireport:\n\nNew client created, use the following join request to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
-		} else {
-			fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to restart services: %v\n", err)
+			}
+
+			wireguardConfig, _ := clientNode.GetFormattedWireguardConfig()
+
+			if !quietClientCreation {
+				fmt.Fprintf(stdOut, "New client created, use the following wireguard config on your client node to connect to the network:\n\n%s\n", *wireguardConfig)
+			} else {
+				fmt.Fprintf(stdOut, "%s\n", *wireguardConfig)
+			}
 		}
 	}
 }
 
-func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
-	fmt.Fprintf(stdOut, "Joining wireport network with token: %s\n", joinToken)
-
-	joinRequest := &join_requests_types.JoinRequest{}
+func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
+	joinRequest := &joinrequeststypes.JoinRequest{}
 
 	err := joinRequest.FromBase64(joinToken)
 
@@ -400,7 +480,7 @@ func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, err
 		return
 	}
 
-	joinRequestsService := join_requests.NewAPIService(&joinRequest.ClientCertBundle)
+	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
 
 	response, err := joinRequestsService.Join(joinToken, joinRequest)
 
@@ -408,11 +488,6 @@ func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, err
 		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
 		return
 	}
-
-	responseBytes, _ := json.Marshal(response)
-	responseJSON := string(responseBytes)
-
-	fmt.Fprintf(stdOut, "Join response: %s\n", responseJSON)
 
 	currentNode := response.NodeConfig
 
@@ -423,7 +498,7 @@ func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, err
 
 	currentNode.IsCurrentNode = true
 
-	err = nodes_repository.SaveNode(currentNode)
+	err = nodesRepository.SaveNode(currentNode)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to save node config: %v\n", err)
@@ -446,14 +521,14 @@ func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, err
 			return
 		}
 
-		err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
+		err = dockerutils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
 			return
 		}
 
-		publicServices := []*public_services.PublicService{}
+		publicServices := []*publicservices.PublicService{}
 
 		err = currentNode.SaveConfigs(publicServices, true)
 
@@ -480,140 +555,176 @@ func (s *Service) Join(nodes_repository *nodes.Repository, stdOut io.Writer, err
 	fmt.Fprintf(stdOut, "Successfully joined the network\n")
 }
 
-func (s *Service) ServerNew(nodes_repository *nodes.Repository, join_requests_repository *join_requests.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, forceServerCreation bool, quietServerCreation bool, dockerSubnet string) {
-	totalDockerSubnets, availableDockerSubnets, err := nodes_repository.TotalAndAvailableDockerSubnets()
+func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, stdOut io.Writer, errOut io.Writer, forceServerCreation bool, quietServerCreation bool, dockerSubnet string) {
+	currentNode, err := nodesRepository.GetCurrentNode()
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to count available Docker subnets: %v\n", err)
+		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
 		return
 	}
 
-	totalServerRoleJoinRequests := join_requests_repository.CountServerJoinRequests()
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		// remote execution
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
 
-	if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
-		fmt.Fprintf(errOut, "No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
-		return
-	}
+		var execResponseDTO commandstypes.ExecResponseDTO
 
-	totalWireguardClients, availableWireguardClients, err := nodes_repository.TotalAvailableWireguardClients()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to count available Wireguard clients: %v\n", err)
-		return
-	}
-
-	totalJoinRequests := join_requests_repository.CountAll()
-
-	if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
-		fmt.Fprintf(errOut, "No Wireguard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
-		return
-	}
-
-	var dockerSubnetPtr *string
-
-	if dockerSubnet != "" {
-		// validate the subnet format
-		parsedDockerSubnet, err := types.ParseIPNetMarshable(dockerSubnet, true)
+		execResponseDTO, err = apiService.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet)
 
 		if err != nil {
-			fmt.Fprintf(errOut, "Failed to parse Docker subnet: %v\n", err)
+			fmt.Fprintf(errOut, "Failed to create server on the host: %v\n", err)
 			return
 		}
 
-		if !nodes_repository.IsDockerSubnetAvailable(parsedDockerSubnet) {
-			fmt.Fprintf(errOut, "Docker subnet %s is already in use\n", dockerSubnet)
-			return
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
 		}
 
-		dockerSubnetPtr = &dockerSubnet
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
 
-		if !quietServerCreation {
-			fmt.Fprintf(stdOut, "Using custom Docker subnet: %s\n", dockerSubnet)
-		}
-	}
-
-	if forceServerCreation {
-		if !quietServerCreation {
-			fmt.Fprintf(stdOut, "Force flag detected, creating server node without generating a join request\n")
-		}
-
-		_, err := nodes_repository.CreateServer(dockerSubnetPtr)
+		return
+	case types.NodeRoleHost:
+		// local execution
+		totalDockerSubnets, availableDockerSubnets, err := nodesRepository.TotalAndAvailableDockerSubnets()
 
 		if err != nil {
-			fmt.Fprintf(errOut, "Failed to create server node: %v\n", err)
+			fmt.Fprintf(errOut, "Failed to count available Docker subnets: %v\n", err)
+			return
+		}
+
+		totalServerRoleJoinRequests := joinRequestsRepository.CountServerJoinRequests()
+
+		if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
+			fmt.Fprintf(errOut, "No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
+			return
+		}
+
+		totalWireguardClients, availableWireguardClients, err := nodesRepository.TotalAvailableWireguardClients()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to count available Wireguard clients: %v\n", err)
+			return
+		}
+
+		totalJoinRequests := joinRequestsRepository.CountAll()
+
+		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
+			fmt.Fprintf(errOut, "No Wireguard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
+			return
+		}
+
+		var dockerSubnetPtr *string
+		var parsedDockerSubnet *types.IPNetMarshable
+
+		if dockerSubnet != "" {
+			// validate the subnet format
+			parsedDockerSubnet, err = types.ParseIPNetMarshable(dockerSubnet, true)
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to parse Docker subnet: %v\n", err)
+				return
+			}
+
+			if !nodesRepository.IsDockerSubnetAvailable(parsedDockerSubnet) {
+				fmt.Fprintf(errOut, "Docker subnet %s is already in use\n", dockerSubnet)
+				return
+			}
+
+			dockerSubnetPtr = &dockerSubnet
+
+			if !quietServerCreation {
+				fmt.Fprintf(stdOut, "Using custom Docker subnet: %s\n", dockerSubnet)
+			}
+		}
+
+		if forceServerCreation {
+			if !quietServerCreation {
+				fmt.Fprintf(stdOut, "Force flag detected, creating server node without generating a join request\n")
+			}
+
+			_, err = nodesRepository.CreateServer(dockerSubnetPtr)
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to create server node: %v\n", err)
+				return
+			}
+
+			if !quietServerCreation {
+				fmt.Fprintf(stdOut, "Server node created without join request\n")
+			}
+
+			return
+		}
+
+		hostNode, err := nodesRepository.GetHostNode()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to get host node: %v\n", err)
+			return
+		}
+
+		joinRequestID := uuid.New().String()
+
+		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+			CommonName: joinRequestID,
+			Expiry:     config.Config.CertExpiry,
+		})
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
+			return
+		}
+
+		err = nodesRepository.SaveNode(hostNode)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
+			return
+		}
+
+		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(joinRequestID)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
+			return
+		}
+
+		joinRequest, err := joinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
+			UDPAddr: net.UDPAddr{
+				IP:   net.ParseIP(*hostNode.WGPublicIP),
+				Port: int(config.Config.ControlServerPort),
+			},
+		}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
+			return
+		}
+
+		joinRequestBase64, err := joinRequest.ToBase64()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
 			return
 		}
 
 		if !quietServerCreation {
-			fmt.Fprintf(stdOut, "Server node created without join request\n")
+			fmt.Fprintf(stdOut, "wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
+		} else {
+			fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
 		}
-
-		return
-	}
-
-	hostNode, err := nodes_repository.GetHostNode()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get host node: %v\n", err)
-		return
-	}
-
-	joinRequestId := uuid.New().String()
-
-	err = hostNode.HostCertBundle.AddClient(mtls.Options{
-		CommonName: joinRequestId,
-		Expiry:     config.Config.CertExpiry,
-	})
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to add client to host cert bundle: %v\n", err)
-		return
-	}
-
-	err = nodes_repository.SaveNode(hostNode)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to save host node: %v\n", err)
-		return
-	}
-
-	clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(joinRequestId)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
-		return
-	}
-
-	joinRequest, err := join_requests_repository.Create(joinRequestId, types.UDPAddrMarshable{
-		UDPAddr: net.UDPAddr{
-			IP:   net.ParseIP(*hostNode.WGPublicIp),
-			Port: int(config.Config.ControlServerPort),
-		},
-	}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
-		return
-	}
-
-	joinRequestBase64, err := joinRequest.ToBase64()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
-		return
-	}
-
-	if !quietServerCreation {
-		fmt.Fprintf(stdOut, "wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
-	} else {
-		fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
 	}
 }
 
-func (s *Service) ServerStart(nodes_repository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
 	fmt.Fprintf(stdOut, "Starting wireport server\n")
 
-	currentNode, err := nodes_repository.GetCurrentNode()
+	currentNode, err := nodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -630,15 +741,21 @@ func (s *Service) ServerStart(nodes_repository *nodes.Repository, stdOut io.Writ
 		return
 	}
 
-	publicServices := []*public_services.PublicService{}
+	publicServices := []*publicservices.PublicService{}
 
-	currentNode.SaveConfigs(publicServices, true)
+	err = currentNode.SaveConfigs(publicServices, true)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to save server node configs: %v\n", err)
+		return
+	}
 
 	fmt.Fprintf(stdOut, "Server node configs saved to the disk successfully\n")
 }
 
-func (s *Service) ServicePublish(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
-	err := public_services_repository.Save(&public_services.PublicService{
+func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer,
+	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
+	err := publicServicesRepository.Save(&publicservices.PublicService{
 		LocalProtocol:  localProtocol,
 		LocalHost:      localHost,
 		LocalPort:      localPort,
@@ -652,21 +769,21 @@ func (s *Service) ServicePublish(nodes_repository *nodes.Repository, public_serv
 		return
 	}
 
-	hostNode, err := nodes_repository.GetHostNode()
+	hostNode, err := nodesRepository.GetHostNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting host node: %v\n", err)
 		return
 	}
 
-	err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
+	err = hostNode.SaveConfigs(publicServicesRepository.GetAll(), false)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error saving host node configs: %v\n", err)
 		return
 	}
 
-	err = network_apps.RestartNetworkApps(false, false, true)
+	err = networkapps.RestartNetworkApps(false, false, true)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error restarting services: %v\n", err)
@@ -676,25 +793,25 @@ func (s *Service) ServicePublish(nodes_repository *nodes.Repository, public_serv
 	fmt.Fprintf(stdOut, "Service %s://%s:%d is now published on\n\n\t\t%s://%s:%d\n\n", localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 }
 
-func (s *Service) ServiceUnpublish(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	unpublished := public_services_repository.Delete(publicProtocol, publicHost, publicPort)
+func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	unpublished := publicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
 
 	if unpublished {
-		hostNode, err := nodes_repository.GetHostNode()
+		hostNode, err := nodesRepository.GetHostNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting host node: %v\n", err)
 			return
 		}
 
-		err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
+		err = hostNode.SaveConfigs(publicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving host node configs: %v\n", err)
 			return
 		}
 
-		err = network_apps.RestartNetworkApps(false, false, true)
+		err = networkapps.RestartNetworkApps(false, false, true)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error restarting services: %v\n", err)
@@ -707,8 +824,8 @@ func (s *Service) ServiceUnpublish(nodes_repository *nodes.Repository, public_se
 	}
 }
 
-func (s *Service) ServiceList(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer) {
-	services := public_services_repository.GetAll()
+func (s *Service) ServiceList(_ *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, _ io.Writer) {
+	services := publicServicesRepository.GetAll()
 
 	fmt.Fprintf(stdOut, "PUBLIC\tLOCAL\n")
 
@@ -717,25 +834,25 @@ func (s *Service) ServiceList(nodes_repository *nodes.Repository, public_service
 	}
 }
 
-func (s *Service) ServiceParamNew(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType public_services.PublicServiceParamType, paramValue string) {
-	updated := public_services_repository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
+func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	updated := publicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if updated {
-		hostNode, err := nodes_repository.GetHostNode()
+		hostNode, err := nodesRepository.GetHostNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting host node: %v\n", err)
 			return
 		}
 
-		err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
+		err = hostNode.SaveConfigs(publicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving host node configs: %v\n", err)
 			return
 		}
 
-		err = network_apps.RestartNetworkApps(false, false, true)
+		err = networkapps.RestartNetworkApps(false, false, true)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error restarting services: %v\n", err)
@@ -748,25 +865,25 @@ func (s *Service) ServiceParamNew(nodes_repository *nodes.Repository, public_ser
 	}
 }
 
-func (s *Service) ServiceParamRemove(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType public_services.PublicServiceParamType, paramValue string) {
-	removed := public_services_repository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
+func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	removed := publicServicesRepository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if removed {
-		hostNode, err := nodes_repository.GetHostNode()
+		hostNode, err := nodesRepository.GetHostNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting host node: %v\n", err)
 			return
 		}
 
-		err = hostNode.SaveConfigs(public_services_repository.GetAll(), false)
+		err = hostNode.SaveConfigs(publicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving host node configs: %v\n", err)
 			return
 		}
 
-		err = network_apps.RestartNetworkApps(false, false, true)
+		err = networkapps.RestartNetworkApps(false, false, true)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error restarting services: %v\n", err)
@@ -779,8 +896,8 @@ func (s *Service) ServiceParamRemove(nodes_repository *nodes.Repository, public_
 	}
 }
 
-func (s *Service) ServiceParamList(nodes_repository *nodes.Repository, public_services_repository *public_services.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	service, err := public_services_repository.Get(publicProtocol, publicHost, publicPort)
+func (s *Service) ServiceParamList(_ *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	service, err := publicServicesRepository.Get(publicProtocol, publicHost, publicPort)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting service: %v\n", err)

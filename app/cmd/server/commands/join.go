@@ -21,6 +21,6 @@ var JoinCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.Join(nodes_repository, cmd.OutOrStdout(), cmd.ErrOrStderr(), joinToken)
+		commandsService.Join(nodesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), joinToken)
 	},
 }

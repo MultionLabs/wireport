@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"wireport/cmd/server/config"
-	docker_utils "wireport/internal/docker-utils"
+	docker_utils "wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
 
@@ -24,8 +24,8 @@ const (
 	dockerSubnetStart = 20
 	dockerSubnetEnd   = 31
 	// wg node range (10.0.0.0/24)
-	wgPrivateIpStart = 1
-	wgPrivateIpEnd   = 254
+	wgPrivateIPStart = 1
+	wgPrivateIPEnd   = 254
 )
 
 type Repository struct {
@@ -59,13 +59,13 @@ func (r *Repository) updateNodes() error {
 			return ErrHostNodeNotFound
 		}
 
-		if hostNode.WGPublicIp == nil || hostNode.WGPublicPort == nil {
+		if hostNode.WGPublicIP == nil || hostNode.WGPublicPort == nil {
 			return ErrHostNodePublicIPPortNotFound
 		}
 
 		var hostEndpoint = types.UDPAddrMarshable{
 			UDPAddr: net.UDPAddr{
-				IP:   net.ParseIP(*hostNode.WGPublicIp),
+				IP:   net.ParseIP(*hostNode.WGPublicIP),
 				Port: int(*hostNode.WGPublicPort),
 			},
 		}
@@ -81,8 +81,8 @@ func (r *Repository) updateNodes() error {
 		persistentKeepalive := 15
 		serverPeerAllowedIps := "10.0.0.0/24"
 		dockerAllAllowedSubnets := "172.16.0.0/12"
-		precisePeerIpTemplate := "%s/32"
-		imprecisePeerIpTemplate := "%s/24"
+		precisePeerIPTemplate := "%s/32"
+		imprecisePeerIPTemplate := "%s/24"
 		for _, node := range oldNodes {
 			// HOST - list of all client and server nodes as peers
 			if node.Role == types.NodeRoleHost {
@@ -105,11 +105,11 @@ func (r *Repository) updateNodes() error {
 					switch clientServerNode.Role {
 					case types.NodeRoleServer:
 						allowedIPs = []string{
-							fmt.Sprintf(precisePeerIpTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP)),
+							fmt.Sprintf(precisePeerIPTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP)),
 							clientServerNode.DockerSubnet.String(),
 						}
 					case types.NodeRoleClient:
-						allowedIPs = []string{fmt.Sprintf(precisePeerIpTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP))}
+						allowedIPs = []string{fmt.Sprintf(precisePeerIPTemplate, types.IPToString(clientServerNode.WGConfig.Interface.Address.IP))}
 					}
 
 					node.WGConfig.Peers = append(node.WGConfig.Peers, types.WGConfigPeer{
@@ -135,7 +135,7 @@ func (r *Repository) updateNodes() error {
 				case types.NodeRoleClient:
 					allowedIPs = []string{
 						dockerAllAllowedSubnets,
-						fmt.Sprintf(imprecisePeerIpTemplate, types.IPToString(hostNode.WGConfig.Interface.Address.IP)),
+						fmt.Sprintf(imprecisePeerIPTemplate, types.IPToString(hostNode.WGConfig.Interface.Address.IP)),
 					}
 				}
 
@@ -164,7 +164,7 @@ func (r *Repository) updateNodes() error {
 	return nil
 }
 
-func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint16, hostPublicIp string, hostPublicPort uint16) (*types.Node, error) {
+func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint16, hostPublicIP string, hostPublicPort uint16) (*types.Node, error) {
 	logger.Info("Creating host node")
 
 	if r.db.First(&types.Node{}, "role = ?", types.NodeRoleHost).RowsAffected > 0 {
@@ -172,7 +172,7 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		return nil, ErrHostNodeAlreadyExists
 	}
 
-	wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+	wgPrivateIP, err := r.GetNextAssignableWGPrivateIP()
 
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 
 	var hostInterfaceAddress = types.IPNetMarshable{
 		IPNet: net.IPNet{
-			IP:   wgPrivateIp.IP,
+			IP:   wgPrivateIP.IP,
 			Mask: net.CIDRMask(24, 32),
 		},
 	}
@@ -192,12 +192,12 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 		return nil, err
 	}
 
-	nodeId := uuid.New().String()
+	nodeID := uuid.New().String()
 
 	hostCertBundle, err := mtls.Generate(mtls.Options{
-		CommonName:  nodeId,
+		CommonName:  nodeID,
 		Expiry:      config.Config.CertExpiry,
-		IPAddresses: []string{hostPublicIp},
+		IPAddresses: []string{hostPublicIP},
 	}, config.Config.CertExpiry)
 
 	if err != nil {
@@ -213,9 +213,10 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 
 		var hostPeers []types.WGConfigPeer = []types.WGConfigPeer{}
 
-		var hostWGPublicIp = WGPublicIp.String()
+		var hostWGPublicIP = WGPublicIP.String()
+		var dockerSubnet *types.IPNetMarshable
 
-		dockerSubnet, err := r.GetNextAssignableDockerSubnet()
+		dockerSubnet, err = r.GetNextAssignableDockerSubnet()
 
 		if err != nil {
 			return err
@@ -223,13 +224,13 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 
 		// ensure docker network exists and is attached to the container
 
-		if err := docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet); err != nil {
+		if err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet); err != nil {
 			logger.Error("Failed to ensure docker network exists and is attached to the container: %v", err)
 			return err
 		}
 
 		node = &types.Node{
-			ID:           nodeId,
+			ID:           nodeID,
 			Role:         types.NodeRoleHost,
 			WGPrivateKey: hostInterfaceWGPrivateKey,
 			WGPublicKey:  hostInterfaceWGPublicKey,
@@ -244,9 +245,9 @@ func (r *Repository) CreateHost(WGPublicIp types.IPMarshable, WGPublicPort uint1
 				},
 				Peers: hostPeers, // refreshed in updateNodes
 			},
-			WGPublicIp:       &hostWGPublicIp,
+			WGPublicIP:       &hostWGPublicIP,
 			WGPublicPort:     &WGPublicPort,
-			HostPublicIp:     hostPublicIp,
+			HostPublicIP:     hostPublicIP,
 			HostPublicPort:   hostPublicPort,
 			HostCertBundle:   hostCertBundle,
 			ClientCertBundle: nil,
@@ -300,10 +301,10 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 			return errors.New("host node not found")
 		}
 
-		nodeId := uuid.New().String()
+		nodeID := uuid.New().String()
 
 		err = hostNode.HostCertBundle.AddClient(mtls.Options{
-			CommonName: nodeId,
+			CommonName: nodeID,
 			Expiry:     config.Config.CertExpiry,
 		})
 
@@ -313,17 +314,20 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 
 		tx.Save(&hostNode)
 
-		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(nodeId)
+		var clientCertBundle *mtls.FullClientBundle
+
+		clientCertBundle, err = hostNode.HostCertBundle.GetClientBundlePublic(nodeID)
 
 		if err != nil {
 			return err
 		}
 
-		if hostNode.WGPublicIp == nil || hostNode.WGPublicPort == nil {
+		if hostNode.WGPublicIP == nil || hostNode.WGPublicPort == nil {
 			return errors.New("host node public ip or port not found")
 		}
 
-		wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+		var wgPrivateIP *types.IPMarshable
+		wgPrivateIP, err = r.GetNextAssignableWGPrivateIP()
 
 		if err != nil {
 			return err
@@ -331,7 +335,7 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 
 		var serverInterfaceAddress = types.IPNetMarshable{
 			IPNet: net.IPNet{
-				IP:   wgPrivateIp.IP,
+				IP:   wgPrivateIP.IP,
 				Mask: net.CIDRMask(24, 32),
 			},
 		}
@@ -357,7 +361,7 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 		}
 
 		node = &types.Node{
-			ID:           nodeId,
+			ID:           nodeID,
 			Role:         types.NodeRoleServer,
 			WGPrivateKey: serverInterfaceWGPrivateKey,
 			WGPublicKey:  serverInterfaceWGPublicKey,
@@ -373,7 +377,7 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 					},
 				},
 			},
-			HostPublicIp:     hostNode.HostPublicIp,
+			HostPublicIP:     hostNode.HostPublicIP,
 			HostPublicPort:   hostNode.HostPublicPort,
 			HostCertBundle:   nil,
 			ClientCertBundle: clientCertBundle,
@@ -423,15 +427,16 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 
 		tx.Find(&allNodes)
 
-		wgPrivateIp, err := r.GetNextAssignableWGPrivateIp()
+		var wgPrivateIP *types.IPMarshable
+		wgPrivateIP, err = r.GetNextAssignableWGPrivateIP()
 
 		if err != nil {
 			return err
 		}
 
-		clientInterfaceAddressIp := types.IPNetMarshable{
+		clientInterfaceAddressIP := types.IPNetMarshable{
 			IPNet: net.IPNet{
-				IP:   wgPrivateIp.IP,
+				IP:   wgPrivateIP.IP,
 				Mask: net.CIDRMask(24, 32),
 			},
 		}
@@ -444,10 +449,10 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			return errors.New("host node not found")
 		}
 
-		nodeId := uuid.New().String()
+		nodeID := uuid.New().String()
 
 		err = hostNode.HostCertBundle.AddClient(mtls.Options{
-			CommonName: nodeId,
+			CommonName: nodeID,
 			Expiry:     config.Config.CertExpiry,
 		})
 
@@ -457,20 +462,22 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 
 		tx.Save(&hostNode)
 
-		clientCertBundle, err := hostNode.HostCertBundle.GetClientBundlePublic(nodeId)
+		var clientCertBundle *mtls.FullClientBundle
+
+		clientCertBundle, err = hostNode.HostCertBundle.GetClientBundlePublic(nodeID)
 
 		if err != nil {
 			return err
 		}
 
 		node = &types.Node{
-			ID:           nodeId,
+			ID:           nodeID,
 			Role:         types.NodeRoleClient,
 			WGPrivateKey: clientInterfaceWGPrivateKey,
 			WGPublicKey:  clientInterfaceWGPublicKey,
 			WGConfig: types.WGConfig{
 				Interface: types.WGConfigInterface{
-					Address:    clientInterfaceAddressIp,
+					Address:    clientInterfaceAddressIP,
 					PrivateKey: clientInterfaceWGPrivateKey,
 					DNS:        []types.IPNetMarshable{}, // refreshed in updateNodes
 				},
@@ -480,7 +487,7 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 					},
 				},
 			},
-			HostPublicIp:     hostNode.HostPublicIp,
+			HostPublicIP:     hostNode.HostPublicIP,
 			HostPublicPort:   hostNode.HostPublicPort,
 			HostCertBundle:   nil,
 			ClientCertBundle: clientCertBundle,
@@ -574,7 +581,7 @@ func (r *Repository) IsDockerSubnetAvailable(dockerSubnet *types.IPNetMarshable)
 	return true
 }
 
-func (r *Repository) IsWGPrivateIpAvailable(WGPrivateIp types.IPMarshable) bool {
+func (r *Repository) IsWGPrivateIPAvailable(WGPrivateIP types.IPMarshable) bool {
 	var nodes []types.Node
 
 	result := r.db.Find(&nodes)
@@ -583,10 +590,10 @@ func (r *Repository) IsWGPrivateIpAvailable(WGPrivateIp types.IPMarshable) bool 
 		return false
 	}
 
-	wgPrivateIpStr := WGPrivateIp.String()
+	wgPrivateIPStr := WGPrivateIP.String()
 
 	for _, node := range nodes {
-		if types.IPToString(node.WGConfig.Interface.Address.IP) == wgPrivateIpStr {
+		if types.IPToString(node.WGConfig.Interface.Address.IP) == wgPrivateIPStr {
 			return false
 		}
 	}
@@ -613,7 +620,7 @@ func (r *Repository) TotalAvailableWireguardClients() (int, int, error) {
 		return 0, 0, err
 	}
 
-	return int(count), (wgPrivateIpEnd - wgPrivateIpStart + 1) - int(count), nil
+	return int(count), (wgPrivateIPEnd - wgPrivateIPStart + 1) - int(count), nil
 }
 
 func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, error) {
@@ -656,7 +663,7 @@ func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, err
 	return nil, ErrNoAvailableDockerSubnets
 }
 
-func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) {
+func (r *Repository) GetNextAssignableWGPrivateIP() (*types.IPMarshable, error) {
 	var nodes []types.Node
 
 	result := r.db.Find(&nodes)
@@ -665,20 +672,20 @@ func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) 
 		return nil, result.Error
 	}
 
-	for networkNum := wgPrivateIpStart; networkNum <= wgPrivateIpEnd; networkNum++ {
+	for networkNum := wgPrivateIPStart; networkNum <= wgPrivateIPEnd; networkNum++ {
 		ip := net.ParseIP(fmt.Sprintf("10.0.0.%d", networkNum))
 
 		if ip == nil {
 			return nil, ErrFailedToParseIP
 		}
 
-		proposedIpStr := types.IPToString(ip)
+		proposedIPStr := types.IPToString(ip)
 
 		// Check if this ip is already in use
 		ipExists := false
 
 		for _, node := range nodes {
-			if types.IPToString(node.WGConfig.Interface.Address.IP) == proposedIpStr {
+			if types.IPToString(node.WGConfig.Interface.Address.IP) == proposedIPStr {
 				ipExists = true
 				break
 			}
@@ -694,7 +701,7 @@ func (r *Repository) GetNextAssignableWGPrivateIp() (*types.IPMarshable, error) 
 	return nil, ErrNoAvailableWGPrivateIPs
 }
 
-func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort uint16, hostPublicIp string, hostPublicPort uint16) (*types.Node, error) {
+func (r *Repository) EnsureHostNode(WGPublicIP types.IPMarshable, WGPublicPort uint16, hostPublicIP string, hostPublicPort uint16) (*types.Node, error) {
 	hostNode, err := r.GetHostNode()
 
 	if err != nil {
@@ -704,7 +711,7 @@ func (r *Repository) EnsureHostNode(WGPublicIp types.IPMarshable, WGPublicPort u
 	if hostNode == nil {
 		logger.Info("Host node not found, creating host node")
 
-		hostNode, err = r.CreateHost(WGPublicIp, WGPublicPort, hostPublicIp, hostPublicPort)
+		hostNode, err = r.CreateHost(WGPublicIP, WGPublicPort, hostPublicIP, hostPublicPort)
 
 		if err != nil {
 			logger.Error("Failed to create host node: %v", err)

@@ -9,7 +9,7 @@ import (
 )
 
 type JoinRequest struct {
-	Id                  string                `gorm:"type:text;primary_key" json:"id"`
+	ID                  string                `gorm:"type:text;primary_key" json:"id"`
 	EncryptionKeyBase64 string                `gorm:"type:text" json:"key"`
 	ClientCertBundle    mtls.FullClientBundle `gorm:"type:text;serializer:json" json:"clientCertBundle"`
 	DockerSubnet        *string               `gorm:"type:text" json:"dockerSubnet"`
