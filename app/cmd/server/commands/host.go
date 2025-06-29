@@ -199,10 +199,10 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 	},
 }
 
-var BootstrapHostCmd = &cobra.Command{
-	Use:   "bootstrap username@hostname[:port]",
-	Short: "Bootstrap wireport host node",
-	Long:  `Bootstrap wireport host node. It will install wireport on the host node.`,
+var UpHostCmd = &cobra.Command{
+	Use:   "up username@hostname[:port]",
+	Short: "Start wireport host node",
+	Long:  `Start wireport host node. It will install wireport on the host node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true)
@@ -212,7 +212,24 @@ var BootstrapHostCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.HostBootstrap(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.HostUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+	},
+}
+
+var DownHostCmd = &cobra.Command{
+	Use:   "down [username@hostname[:port]]",
+	Short: "Stop wireport host node",
+	Long:  `Stop wireport host node. It will stop the wireport host node and remove all data from the host node.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		creds, err := buildSSHCredentials(cmd, args, true)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.HostDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
 	},
 }
 
@@ -236,14 +253,16 @@ var UpgradeHostCmd = &cobra.Command{
 func init() {
 	HostCmd.AddCommand(StartHostCmd)
 	HostCmd.AddCommand(StatusHostCmd)
-	HostCmd.AddCommand(BootstrapHostCmd)
+	HostCmd.AddCommand(UpHostCmd)
+	HostCmd.AddCommand(DownHostCmd)
 	HostCmd.AddCommand(UpgradeHostCmd)
 
 	StartHostCmd.Flags().BoolVar(&HostStartConfigureOnly, "configure", false, "Configure wireport in host mode without making it available for external connections")
 
 	StatusHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
-	BootstrapHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	DownHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
 	UpgradeHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }
