@@ -31,7 +31,9 @@ elif [ "$1" = "server" ]; then
     if [ "$2" = "start" ]; then
         echo "> Starting wireport server"
 
+        mv /etc/service/caddy /etc/service-disabled/
         mv /etc/service/wireport-host /etc/service-disabled/
+        mv /etc/service/iptables-host /etc/service-disabled/
     elif [ "$2" = "disconnect" ]; then
         echo "> Disconnecting wireport server"
 

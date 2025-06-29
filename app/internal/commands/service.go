@@ -224,6 +224,47 @@ func (s *Service) HostBootstrap(creds *ssh.Credentials, stdOut io.Writer, errOut
 	fmt.Fprintf(stdOut, "✨ Bootstrap process completed!\n")
 }
 
+func (s *Service) HostUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		sshService := ssh.NewService()
+
+		err = sshService.Connect(creds)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to connect to host: %v\n", err)
+			return
+		}
+
+		defer sshService.Close()
+
+		fmt.Fprintf(stdOut, "Upgrading wireport host node...\n")
+
+		success, err := sshService.UpgradeWireportHost()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to upgrade wireport host: %v\n", err)
+			return
+		}
+
+		if success {
+			fmt.Fprintf(stdOut, "Wireport host node upgraded successfully\n")
+		} else {
+			fmt.Fprintf(errOut, "Failed to upgrade wireport host\n")
+		}
+	default:
+		fmt.Fprintf(errOut, "Can only upgrade wireport host node from a client node\n")
+		return
+	}
+}
+
 func (s *Service) HostStart(hostPublicIP string, nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository,
 	_ *gorm.DB, stdOut io.Writer, errOut io.Writer, hostStartConfigureOnly bool, router http.Handler) {
 	hostNode, err := nodesRepository.EnsureHostNode(types.IPMarshable{
@@ -766,6 +807,107 @@ func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Write
 	}
 }
 
+func (s *Service) ServerList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case node_types.NodeRoleClient:
+		// remote execution
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServerList()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list servers: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case node_types.NodeRoleHost:
+		// local execution
+		serverNodes, err := nodesRepository.GetNodesByRole(node_types.NodeRoleServer)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
+			return
+		}
+
+		fmt.Fprintf(stdOut, "ID\tPRIVATE IP\n")
+
+		for _, serverNode := range serverNodes {
+
+			if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
+				fmt.Fprintf(stdOut, "%s*\t%s\n", serverNode.ID, serverNode.WGConfig.Interface.Address.String())
+			} else {
+				fmt.Fprintf(stdOut, "%s\t%s\n", serverNode.ID, serverNode.WGConfig.Interface.Address.String())
+			}
+		}
+
+		return
+	default:
+		fmt.Fprintf(errOut, "Error: Current node is not a client or host\n")
+		return
+	}
+}
+
+func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		sshService := ssh.NewService()
+
+		err = sshService.Connect(creds)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to connect to server: %v\n", err)
+			return
+		}
+
+		defer sshService.Close()
+
+		fmt.Fprintf(stdOut, "Upgrading wireport server node...\n")
+
+		success, err := sshService.UpgradeWireportServer()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to upgrade wireport server: %v\n", err)
+			return
+		}
+
+		if success {
+			fmt.Fprintf(stdOut, "Wireport server node upgraded successfully\n")
+		} else {
+			fmt.Fprintf(errOut, "Failed to upgrade wireport server\n")
+		}
+	default:
+		fmt.Fprintf(errOut, "Can only upgrade wireport server node from a client node\n")
+		return
+	}
+}
+
 func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer,
 	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
 	err := publicServicesRepository.Save(&publicservices.PublicService{
@@ -1191,4 +1333,64 @@ func (s *Service) ServerDisconnect(nodesRepository *nodes.Repository, creds *ssh
 	fmt.Fprintf(stdOut, "   Status: ✅ Disconnected\n\n")
 
 	fmt.Fprintf(stdOut, "✨ Server disconnect process completed!\n")
+}
+
+func (s *Service) ClientList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case node_types.NodeRoleClient:
+		// remote execution
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ClientList()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list clients: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case node_types.NodeRoleHost:
+		// local execution
+		clientNodes, err := nodesRepository.GetNodesByRole(node_types.NodeRoleClient)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
+			return
+		}
+
+		fmt.Fprintf(stdOut, "ID\tPRIVATE IP\n")
+
+		for _, clientNode := range clientNodes {
+
+			if requestFromNodeID != nil && clientNode.ID == *requestFromNodeID {
+				fmt.Fprintf(stdOut, "%s*\t%s\n", clientNode.ID, clientNode.WGConfig.Interface.Address.String())
+			} else {
+				fmt.Fprintf(stdOut, "%s\t%s\n", clientNode.ID, clientNode.WGConfig.Interface.Address.String())
+			}
+		}
+
+		return
+	default:
+		fmt.Fprintf(errOut, "Error: Current node is not a client or host\n")
+		return
+	}
 }
