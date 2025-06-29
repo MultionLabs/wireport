@@ -52,13 +52,10 @@ COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 COPY --from=coredns-builder /app/coredns/coredns /usr/bin/coredns
 COPY --from=go-builder /app/wireport /usr/bin/wireport
 
-VOLUME /etc/caddy
-VOLUME /caddy
 VOLUME /app/wireport
-VOLUME /data
 
 COPY ./docker/fs/etc/service /etc/service
-RUN mkdir -p /etc/caddy && mkdir -p /etc/coredns && mkdir -p /etc/service-disabled
+RUN mkdir -p /app/wireport/caddy/fs/data /app/wireport/caddy/fs/config /etc/coredns /etc/caddy /etc/service-disabled
 
 COPY ./docker/fs/entry.sh /
 RUN chmod +x /entry.sh

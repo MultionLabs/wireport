@@ -34,13 +34,13 @@ elif [ "$1" = "server" ]; then
         mv /etc/service/caddy /etc/service-disabled/
         mv /etc/service/wireport-host /etc/service-disabled/
         mv /etc/service/iptables-host /etc/service-disabled/
-    elif [ "$2" = "disconnect" ]; then
-        echo "> Disconnecting wireport server"
+    elif [ "$2" = "down" ]; then
+        echo "> Tearing down wireport server"
 
-        wireport server disconnect
+        wireport server down
         exit 0
     else
-        echo "Invalid command. Use 'start' or 'disconnect'."
+        echo "Invalid command. Use 'start' or 'down'."
         exit 1
     fi
 else
