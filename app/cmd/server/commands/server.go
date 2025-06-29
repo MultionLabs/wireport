@@ -102,6 +102,31 @@ var DisconnectServerCmd = &cobra.Command{
 	},
 }
 
+var ListServerCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all servers",
+	Long:  `List all servers that are connected to the wireport network`,
+	Run: func(cmd *cobra.Command, _ []string) {
+		commandsService.ServerList(nodesRepository, nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	},
+}
+
+var UpgradeServerCmd = &cobra.Command{
+	Use:   "upgrade",
+	Short: "Upgrade a server",
+	Long:  `Upgrade a server. This command is only relevant for server nodes after they joined the network.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		creds, err := buildSSHCredentials(cmd, args, false)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.ServerUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+	},
+}
+
 func init() {
 	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
@@ -112,6 +137,8 @@ func init() {
 	ServerCmd.AddCommand(StatusServerCmd)
 	ServerCmd.AddCommand(ConnectServerCmd)
 	ServerCmd.AddCommand(DisconnectServerCmd)
+	ServerCmd.AddCommand(ListServerCmd)
+	ServerCmd.AddCommand(UpgradeServerCmd)
 
 	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
@@ -119,4 +146,6 @@ func init() {
 	ConnectServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
 
 	DisconnectServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+
+	UpgradeServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }

@@ -216,14 +216,34 @@ var BootstrapHostCmd = &cobra.Command{
 	},
 }
 
+var UpgradeHostCmd = &cobra.Command{
+	Use:   "upgrade [username@hostname[:port]]",
+	Short: "Upgrade wireport host node",
+	Long:  `Upgrade wireport host node. It will upgrade the wireport host node to the latest version.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		creds, err := buildSSHCredentials(cmd, args, true)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.HostUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+	},
+}
+
 func init() {
 	HostCmd.AddCommand(StartHostCmd)
 	HostCmd.AddCommand(StatusHostCmd)
 	HostCmd.AddCommand(BootstrapHostCmd)
+	HostCmd.AddCommand(UpgradeHostCmd)
 
 	StartHostCmd.Flags().BoolVar(&HostStartConfigureOnly, "configure", false, "Configure wireport in host mode without making it available for external connections")
 
 	StatusHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
 	BootstrapHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+
+	UpgradeHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }

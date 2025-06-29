@@ -750,3 +750,15 @@ func (r *Repository) IsCurrentNodeHost() bool {
 
 	return node.Role == types.NodeRoleHost
 }
+
+func (r *Repository) GetNodesByRole(role types.NodeRole) ([]types.Node, error) {
+	var nodes []types.Node
+
+	result := r.db.Find(&nodes, "role = ?", role)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return nodes, nil
+}

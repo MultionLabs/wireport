@@ -70,6 +70,8 @@ type Configuration struct {
 	NewClientScriptTemplatePath        string
 	ConnectServerScriptTemplatePath    string
 	DisconnectServerScriptTemplatePath string
+	UpgradeHostScriptTemplatePath      string
+	UpgradeServerScriptTemplatePath    string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -106,6 +108,8 @@ var Config = &Configuration{
 	NewClientScriptTemplatePath:        "scripts/new/client.hbs",
 	ConnectServerScriptTemplatePath:    "scripts/connect/server.hbs",
 	DisconnectServerScriptTemplatePath: "scripts/disconnect/server.hbs",
+	UpgradeHostScriptTemplatePath:      "scripts/upgrade/host.hbs",
+	UpgradeServerScriptTemplatePath:    "scripts/upgrade/server.hbs",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",

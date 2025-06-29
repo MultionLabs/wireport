@@ -25,6 +25,12 @@ type ClientNewRequestDTO struct {
 	Wait        bool `json:"wait"`
 }
 
+type ClientListRequestDTO struct {
+}
+
+type ServerListRequestDTO struct {
+}
+
 // join requests
 
 type JoinRequestDTO struct {

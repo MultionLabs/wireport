@@ -96,3 +96,31 @@ func (a *APIService) ClientNew(force bool, quiet bool, wait bool) (types.ExecRes
 
 	return clientNewResponseDTO, nil
 }
+
+func (a *APIService) ClientList() (types.ExecResponseDTO, error) {
+	clientListResponseDTO, err := makeSecureRequestWithResponse[types.ClientListRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/client/list",
+		types.ClientListRequestDTO{},
+	)
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return clientListResponseDTO, nil
+}
+
+func (a *APIService) ServerList() (types.ExecResponseDTO, error) {
+	serverListResponseDTO, err := makeSecureRequestWithResponse[types.ServerListRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/server/list",
+		types.ServerListRequestDTO{},
+	)
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serverListResponseDTO, nil
+}

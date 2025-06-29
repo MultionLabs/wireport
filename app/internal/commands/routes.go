@@ -75,6 +75,59 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		logger.Info("[%s] Server new response: %v", r.Method, response)
 	})
 
+	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			logger.Error("[%s] Server list request is not over TLS; dropping request", r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+
+		var serverListRequestDTO types.ServerListRequestDTO
+
+		err := json.NewDecoder(r.Body).Decode(&serverListRequestDTO)
+
+		if err != nil {
+			logger.Error("[%s] Failed to parse server list request: %v", r.Method, err)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		stdOut := bytes.NewBufferString("")
+		errOut := bytes.NewBufferString("")
+
+		commandsService.ServerList(nodesRepository, &requestFromNodeID, stdOut, errOut)
+
+		exitCode := 0
+
+		if len(errOut.String()) > 0 {
+			exitCode = 1
+		}
+
+		response := types.ExecResponseDTO{
+			Stdout:   strings.TrimSpace(stdOut.String()),
+			Stderr:   strings.TrimSpace(errOut.String()),
+			ExitCode: exitCode,
+		}
+
+		err = json.NewEncoder(w).Encode(response)
+
+		if err != nil {
+			logger.Error("[%s] Failed to encode server list response: %v", r.Method, err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("[%s] Server list response: %v", r.Method, response)
+	})
+
 	mux.HandleFunc("/commands/client/new", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil {
 			logger.Error("[%s] Client new request is not over TLS; dropping request", r.Method)
@@ -124,6 +177,59 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		}
 
 		logger.Info("[%s] Client new response: %v", r.Method, response)
+	})
+
+	mux.HandleFunc("/commands/client/list", func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			logger.Error("[%s] Client list request is not over TLS; dropping request", r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+
+		var clientListRequestDTO types.ClientListRequestDTO
+
+		err := json.NewDecoder(r.Body).Decode(&clientListRequestDTO)
+
+		if err != nil {
+			logger.Error("[%s] Failed to parse client list request: %v", r.Method, err)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		stdOut := bytes.NewBufferString("")
+		errOut := bytes.NewBufferString("")
+
+		commandsService.ClientList(nodesRepository, &requestFromNodeID, stdOut, errOut)
+
+		exitCode := 0
+
+		if len(errOut.String()) > 0 {
+			exitCode = 1
+		}
+
+		response := types.ExecResponseDTO{
+			Stdout:   strings.TrimSpace(stdOut.String()),
+			Stderr:   strings.TrimSpace(errOut.String()),
+			ExitCode: exitCode,
+		}
+
+		err = json.NewEncoder(w).Encode(response)
+
+		if err != nil {
+			logger.Error("[%s] Failed to encode client list response: %v", r.Method, err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("[%s] Client list response: %v", r.Method, response)
 	})
 
 	mux.HandleFunc("/commands/join", func(w http.ResponseWriter, r *http.Request) {
