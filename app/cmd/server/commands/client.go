@@ -23,10 +23,20 @@ var NewClientCmd = &cobra.Command{
 	},
 }
 
+var ListClientCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all clients",
+	Long:  `List all clients that are connected to the wireport network`,
+	Run: func(cmd *cobra.Command, _ []string) {
+		commandsService.ClientList(nodesRepository, nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	},
+}
+
 func init() {
 	NewClientCmd.Flags().BoolVarP(&joinRequestClientCreation, "join-request", "j", false, "Create a join request for connecting a client to wireport network (by default, a client is created, bypassing the join request)")
 	NewClientCmd.Flags().BoolVarP(&quietClientCreation, "quiet", "q", false, "Quiet mode, don't print any output except for the join request token")
 	NewClientCmd.Flags().BoolVarP(&waitClientCreation, "wait", "w", false, "Wait for the client to be created (will check periodically whether there's a host and if a client can be created then)")
 
 	ClientCmd.AddCommand(NewClientCmd)
+	ClientCmd.AddCommand(ListClientCmd)
 }
