@@ -1,0 +1,6 @@
+docker exec {{ wireportServerContainerName }} sh -c 'for svc in /etc/service/*; do sv down "$svc"; done'  && \
+docker exec {{ wireportServerContainerName }} wireport server down && \
+docker exec {{ wireportServerContainerName }} sh -c 'rm -rf /app/wireport/*' && \
+docker stop {{ wireportServerContainerName }} && \
+docker rm {{ wireportServerContainerName }} && \
+docker rmi {{ wireportServerContainerImage }} || true

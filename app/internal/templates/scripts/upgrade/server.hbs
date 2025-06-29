@@ -4,8 +4,6 @@ docker rm {{ wireportServerContainerName }} && \
 docker run -d --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
 	-e DATABASE_PATH=/app/wireport/wireport.db \
 	-v /var/run/docker.sock:/var/run/docker.sock \
-	-v ~/.wireport/{{ wireportVersion }}/server/fs/data:/data \
-	-v ~/.wireport/{{ wireportVersion }}/server/fs/config:/config \
-	-v ~/.wireport/{{ wireportVersion }}/server/fs/app/wireport:/app/wireport \
+	-v ~/.wireport/server:/app/wireport \
 	--name {{ wireportServerContainerName }} \
 	{{ wireportServerContainerImage }} server start

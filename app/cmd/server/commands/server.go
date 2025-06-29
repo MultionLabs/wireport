@@ -53,10 +53,10 @@ var StatusServerCmd = &cobra.Command{
 	},
 }
 
-var ConnectServerCmd = &cobra.Command{
-	Use:   "connect",
-	Short: "Connect to a wireport server node",
-	Long:  `Connect to a wireport server node. This command is only relevant for server nodes after they joined the network.`,
+var UpServerCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Up a wireport server node",
+	Long:  `Up a wireport server node. This command is only relevant for server nodes after they joined the network.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, false)
@@ -76,14 +76,14 @@ var ConnectServerCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.ServerConnect(nodesRepository, joinRequestsRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
+		commandsService.ServerUp(nodesRepository, joinRequestsRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
 	},
 }
 
-var DisconnectServerCmd = &cobra.Command{
-	Use:   "disconnect",
-	Short: "Disconnect from a wireport server node",
-	Long:  `Disconnect from a wireport server node. This command is only relevant for server nodes after they joined the network.`,
+var DownServerCmd = &cobra.Command{
+	Use:   "down",
+	Short: "Stop wireport server node",
+	Long:  `Stop wireport server node. This command is only relevant for server nodes after they joined the network.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var creds *ssh.Credentials
@@ -98,7 +98,7 @@ var DisconnectServerCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.ServerDisconnect(nodesRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServerDown(nodesRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -135,17 +135,17 @@ func init() {
 	ServerCmd.AddCommand(NewServerCmd)
 	ServerCmd.AddCommand(StartServerCmd)
 	ServerCmd.AddCommand(StatusServerCmd)
-	ServerCmd.AddCommand(ConnectServerCmd)
-	ServerCmd.AddCommand(DisconnectServerCmd)
+	ServerCmd.AddCommand(UpServerCmd)
+	ServerCmd.AddCommand(DownServerCmd)
 	ServerCmd.AddCommand(ListServerCmd)
 	ServerCmd.AddCommand(UpgradeServerCmd)
 
 	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
-	ConnectServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
-	ConnectServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
+	UpServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
 
-	DisconnectServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	DownServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
 	UpgradeServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }

@@ -66,12 +66,13 @@ type Configuration struct {
 	CaddyConfigTemplatePath   string
 	CoreDNSConfigTemplatePath string
 
-	BootstrapHostScriptTemplatePath    string
-	NewClientScriptTemplatePath        string
-	ConnectServerScriptTemplatePath    string
-	DisconnectServerScriptTemplatePath string
-	UpgradeHostScriptTemplatePath      string
-	UpgradeServerScriptTemplatePath    string
+	UpHostScriptTemplatePath        string
+	UpServerScriptTemplatePath      string
+	DownServerScriptTemplatePath    string
+	DownHostScriptTemplatePath      string
+	UpgradeHostScriptTemplatePath   string
+	UpgradeServerScriptTemplatePath string
+	NewClientScriptTemplatePath     string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -95,8 +96,8 @@ var Config = &Configuration{
 	DatabasePath:      DatabasePath,
 	WGPublicPort:      51820,
 
-	WireguardConfigPath: GetEnv("WIREGUARD_CONFIG_PATH", "/etc/wireguard/wg0.conf"),
 	ResolvConfigPath:    GetEnv("RESOLV_CONFIG_PATH", "/etc/resolv.conf"),
+	WireguardConfigPath: GetEnv("WIREGUARD_CONFIG_PATH", "/etc/wireguard/wg0.conf"),
 	CaddyConfigPath:     GetEnv("CADDY_CONFIG_PATH", "/etc/caddy/Caddyfile"),
 	CoreDNSConfigPath:   GetEnv("COREDNS_CONFIG_PATH", "/etc/coredns/Corefile"),
 
@@ -104,12 +105,13 @@ var Config = &Configuration{
 	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
 	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
 
-	BootstrapHostScriptTemplatePath:    "scripts/bootstrap/host.hbs",
-	NewClientScriptTemplatePath:        "scripts/new/client.hbs",
-	ConnectServerScriptTemplatePath:    "scripts/connect/server.hbs",
-	DisconnectServerScriptTemplatePath: "scripts/disconnect/server.hbs",
-	UpgradeHostScriptTemplatePath:      "scripts/upgrade/host.hbs",
-	UpgradeServerScriptTemplatePath:    "scripts/upgrade/server.hbs",
+	UpHostScriptTemplatePath:        "scripts/up/host.hbs",
+	UpServerScriptTemplatePath:      "scripts/up/server.hbs",
+	DownHostScriptTemplatePath:      "scripts/down/host.hbs",
+	DownServerScriptTemplatePath:    "scripts/down/server.hbs",
+	UpgradeHostScriptTemplatePath:   "scripts/upgrade/host.hbs",
+	UpgradeServerScriptTemplatePath: "scripts/upgrade/server.hbs",
+	NewClientScriptTemplatePath:     "scripts/new/client.hbs",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",
