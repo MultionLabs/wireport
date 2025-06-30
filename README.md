@@ -23,8 +23,8 @@
 
 **wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private Docker services to the Internet. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
 
-- Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
 - Exposing Docker services, running in a local network (e.g., on the local machine, on a corporate network, on a NAS or on a home server), to the Internet
+- Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
 
 ## Features
 
@@ -34,6 +34,8 @@
 - TLS termination and 100% automated certificate provisioning and renewal
 - Quick and easy setup via `wireport` CLI and pre-built Docker image
 - Self-hosted
+- High performance with a low memory footprint
+- Multiplatform CLI (Linux, macOS, Windows — ARM64 & AMD64)
 
 ## Key Concepts
 
