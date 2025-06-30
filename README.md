@@ -35,18 +35,18 @@
 - Quick and easy setup via `wireport` CLI and pre-built Docker image
 - Self-hosted
 
-## Prerequisites
+## Key Concepts
 
-- Two **separate**, Linux-based nodes with Docker installed:
-  - HOST - a Linux-based node with a public IP and open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp; serves as an entry point into the ingress network where your services are published
-  - SERVER (optionally) - a Linux-based node with Docker-based services / workloads
-- Arbitrary number of CLIENT machines (laptops/PCs) that will get access to the private services
+- **HOST** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
+- **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
+- **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the HOST.
 
 ## Quick Start
 
 Get up and running in just **two commands**:
 
-## 1. Bring a HOST online
+
+#### 1. Bring a HOST online
 
 ```bash
 wireport host up ssh-user@<HOST_IP> --ssh-key-path ~/.ssh/id_rsa
@@ -76,7 +76,7 @@ sudo ufw enable
 3) The account used for SSH-ing into the target HOST machine has all the necessary permissions for managing Docker containers, images and networks
 </details>
 
-## 2. Publish a local service to the Internet
+#### 2. Publish a local service to the Internet
 
 ```bash
 wireport service publish \
