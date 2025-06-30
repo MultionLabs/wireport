@@ -652,90 +652,7 @@ func (s *Service) ClientList(nodesRepository *nodes.Repository, requestFromNodeI
 	}
 }
 
-func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
-	joinRequest := &joinrequeststypes.JoinRequest{}
-
-	err := joinRequest.FromBase64(joinToken)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to parse join request: %v\n", err)
-		return
-	}
-
-	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
-
-	response, err := joinRequestsService.Join(joinToken, joinRequest)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
-		return
-	}
-
-	currentNode := response.NodeConfig
-
-	if currentNode == nil {
-		fmt.Fprintf(errOut, "Failed to get node config from join response\n")
-		return
-	}
-
-	currentNode.IsCurrentNode = true
-
-	err = nodesRepository.SaveNode(currentNode)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to save node config: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(stdOut, "Setting up server node (configs and network)\n")
-
-		if currentNode.DockerSubnet == nil {
-			fmt.Fprintf(errOut, "Failed to get docker subnet from node config\n")
-			return
-		}
-
-		dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to parse docker subnet: %v\n", err)
-			return
-		}
-
-		err = dockerutils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
-			return
-		}
-
-		publicServices := []*publicservices.PublicService{}
-
-		err = currentNode.SaveConfigs(publicServices, true)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to save node configs: %v\n", err)
-			return
-		}
-
-		fmt.Fprintf(stdOut, "Successfully saved node config to the database\n")
-	case types.NodeRoleClient:
-		wireguardConfig, err := currentNode.GetFormattedWireguardConfig()
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to get wireguard config: %v\n", err)
-			return
-		}
-
-		fmt.Fprintf(stdOut, "New client created, use the following wireguard config to connect to the network:\n\n%s\n", *wireguardConfig)
-	default:
-		fmt.Fprintf(errOut, "Invalid node role: %s\n", currentNode.Role)
-		return
-	}
-
-	fmt.Fprintf(stdOut, "Successfully joined the network\n")
-}
+// server
 
 func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, stdOut io.Writer, errOut io.Writer, forceServerCreation bool, quietServerCreation bool, dockerSubnet string) {
 	currentNode, err := nodesRepository.GetCurrentNode()
@@ -1315,9 +1232,47 @@ func (s *Service) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Crede
 	fmt.Fprintf(stdOut, "✨ Server teardown process completed!\n")
 }
 
+// service
+
 func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer,
 	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
-	err := publicServicesRepository.Save(&publicservices.PublicService{
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServicePublish(localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to publish service: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot publish services\n")
+		return
+	}
+
+	err = publicServicesRepository.Save(&publicservices.PublicService{
 		LocalProtocol:  localProtocol,
 		LocalHost:      localHost,
 		LocalPort:      localPort,
@@ -1356,6 +1311,42 @@ func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServic
 }
 
 func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServiceUnpublish(publicProtocol, publicHost, publicPort)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to unpublish service: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot publish services\n")
+		return
+	}
+
 	unpublished := publicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
 
 	if unpublished {
@@ -1386,7 +1377,43 @@ func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServ
 	}
 }
 
-func (s *Service) ServiceList(_ *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, _ io.Writer) {
+func (s *Service) ServiceList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServiceList()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot list services\n")
+		return
+	}
+
 	services := publicServicesRepository.GetAll()
 
 	fmt.Fprintf(stdOut, "PUBLIC\tLOCAL\n")
@@ -1396,7 +1423,45 @@ func (s *Service) ServiceList(_ *nodes.Repository, publicServicesRepository *pub
 	}
 }
 
+// service params
+
 func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServiceParamNew(publicProtocol, publicHost, publicPort, paramType, paramValue)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to add service param: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot add service params\n")
+		return
+	}
+
 	updated := publicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if updated {
@@ -1428,6 +1493,42 @@ func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServi
 }
 
 func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServiceParamRemove(publicProtocol, publicHost, publicPort, paramType, paramValue)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to remove service param: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot remove service params\n")
+		return
+	}
+
 	removed := publicServicesRepository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if removed {
@@ -1458,7 +1559,43 @@ func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicSe
 	}
 }
 
-func (s *Service) ServiceParamList(_ *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+func (s *Service) ServiceParamList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleClient:
+		apiService := APIService{
+			Host:             currentNode.HostPublicIP,
+			Port:             currentNode.HostPublicPort,
+			ClientCertBundle: currentNode.ClientCertBundle,
+		}
+
+		var execResponseDTO commandstypes.ExecResponseDTO
+
+		execResponseDTO, err = apiService.ServiceParamList(publicProtocol, publicHost, publicPort)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list service params: %v\n", err)
+			return
+		}
+
+		if len(execResponseDTO.Stderr) > 0 {
+			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		}
+
+		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+
+		return
+	case types.NodeRoleServer:
+		fmt.Fprintf(errOut, "Server node cannot list service params\n")
+		return
+	}
+
 	service, err := publicServicesRepository.Get(publicProtocol, publicHost, publicPort)
 
 	if err != nil {
@@ -1473,4 +1610,91 @@ func (s *Service) ServiceParamList(_ *nodes.Repository, publicServicesRepository
 	}
 
 	fmt.Fprintf(stdOut, "\n")
+}
+
+// join
+
+func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
+	joinRequest := &joinrequeststypes.JoinRequest{}
+
+	err := joinRequest.FromBase64(joinToken)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to parse join request: %v\n", err)
+		return
+	}
+
+	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
+
+	response, err := joinRequestsService.Join(joinToken, joinRequest)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
+		return
+	}
+
+	currentNode := response.NodeConfig
+
+	if currentNode == nil {
+		fmt.Fprintf(errOut, "Failed to get node config from join response\n")
+		return
+	}
+
+	currentNode.IsCurrentNode = true
+
+	err = nodesRepository.SaveNode(currentNode)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to save node config: %v\n", err)
+		return
+	}
+
+	switch currentNode.Role {
+	case types.NodeRoleServer:
+		fmt.Fprintf(stdOut, "Setting up server node (configs and network)\n")
+
+		if currentNode.DockerSubnet == nil {
+			fmt.Fprintf(errOut, "Failed to get docker subnet from node config\n")
+			return
+		}
+
+		dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to parse docker subnet: %v\n", err)
+			return
+		}
+
+		err = dockerutils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
+			return
+		}
+
+		publicServices := []*publicservices.PublicService{}
+
+		err = currentNode.SaveConfigs(publicServices, true)
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to save node configs: %v\n", err)
+			return
+		}
+
+		fmt.Fprintf(stdOut, "Successfully saved node config to the database\n")
+	case types.NodeRoleClient:
+		wireguardConfig, err := currentNode.GetFormattedWireguardConfig()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to get wireguard config: %v\n", err)
+			return
+		}
+
+		fmt.Fprintf(stdOut, "New client created, use the following wireguard config to connect to the network:\n\n%s\n", *wireguardConfig)
+	default:
+		fmt.Fprintf(errOut, "Invalid node role: %s\n", currentNode.Role)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "Successfully joined the network\n")
 }
