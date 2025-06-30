@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet and local environment.</strong><br />
+  <strong>Self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet.</strong><br />
   Powered by WireGuard, CoreDNS and Caddy
 </p>
 
@@ -20,121 +20,112 @@
 
 ---
 
-# wireport
 
-**wireport** is a self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet and local environment. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
+**wireport** is a self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
 
 - Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
-- Exposing Docker services, running in a local network (e.g., a NAS or a home server), to the Internet
+- Exposing Docker services, running in a local network (e.g., on the local machine, on a corporate network, on a NAS or on a home server), to the Internet
 
 ## Features
 
 - Secure VPN tunneling (WireGuard)
 - Automatic service discovery and hostname resolution for Docker containers (CoreDNS)
-- HTTP(-S) and TCP/UDP (Level-4) (reverse-) proxy (Caddy)
+- HTTP(S) and TCP/UDP (Layer-4) reverse proxy (Caddy)
 - TLS termination and 100% automated certificate provisioning and renewal
-- Quick and easy setup via `wireport` cli and pre-built Docker-image
+- Quick and easy setup via `wireport` CLI and pre-built Docker image
 - Self-hosted
 
 ## Prerequisites
 
-- Two **serapate**, Linux-based nodes with docker installed:
-  - HOST - a Linux-based node with a public IP and open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp
-  - SERVER - a Linux-based node with Docker-based services / workloads
+- Two **separate**, Linux-based nodes with Docker installed:
+  - HOST - a Linux-based node with a public IP and open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp; serves as an entry point into the ingress network where your services are published
+  - SERVER (optionally) - a Linux-based node with Docker-based services / workloads
 - Arbitrary number of CLIENT machines (laptops/PCs) that will get access to the private services
 
-# Quick start
+## Quick Start
 
-## 1. HOST node setup
+Get up and running in just **two commands**:
 
-### 1.1. Make sure to open ports in the firewall
-
-Example for distros with ufw (e.g., Ubuntu):
+## 1. Bring a HOST online
 
 ```bash
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw allow 4060/tcp
-ufw allow 51820/udp
-
-ufw enable
-ufw status
+wireport host up ubuntu@<HOST_IP> --ssh-key-path ~/.ssh/id_rsa
 ```
 
-### 1.2. Start wireport in host mode
+<details>
+<summary><strong>Important – firewall and other prerequisites</strong></summary>
+
+`wireport host up` expects that:
+
+1) the following ports must be reachable on the target HOST machine *before* you run the command:
+
+* 22/tcp (SSH)
+* 80/tcp and 443/tcp (HTTP/HTTPS)
+* 4060/tcp (Wireport control channel)
+* 51820/udp (WireGuard)
+
+Example with UFW:
 
 ```bash
-mkdir -p ./fs/app/wireport && \
-docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
-    -p 51820:51820/udp -p 80:80/tcp -p 443:443/tcp -p 4060:4060/tcp \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ./fs/app/wireport:/app/wireport \
-    --name wireport-host \
-    anybotsllc/wireport host
+sudo ufw allow 22,80,443,4060/tcp
+sudo ufw allow 51820/udp
+sudo ufw enable
 ```
 
-### 1.3. Generate a **join-token** for connecting a SERVER-node to the HOST
+2) Docker is installed on the target host machine
+3) The account used for SSH-ing into the target HOST machine has all the necessary permissions for managing Docker containers, images and networks
+</details>
 
+## 2. Publish a local service to the Internet
 
 ```bash
-docker exec -it wireport-host bash
-# ... then, from inside the contaienr:
-wireport server new
+wireport service publish \
+  --local  http://10.0.0.2:3000 \
+  --public https://demo.example.com:443
 ```
 
-- copy the join-token and use it for setting up the SERVER node.
+<details>
+<summary><strong>Important - DNS config and other prerequisites</strong></summary>
 
-## 2. SERVER node setup
+1) For the service to become available over the given public URL, there must be a respective `A`-record in the DNS settings of your domain name provider, pointing to the target **HOST** machine's IP address.
 
-```bash
-mkdir -p ./fs/app/wireport && mkdir -p ./fs/data && \
-docker run --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ./fs/data:/data \
-    -v ./fs/app/wireport:/app/wireport \
-    --name wireport-server \
-    anybotsllc/wireport join <JOIN-TOKEN>
-```
+2) After bootstrapping the host node with `wireport host up ...` command, you should add the respective WireGuard tunnel on your local machine
 
-- here, substitute **<JOIN-TOKEN>** with the value, copied from the HOST node.
+3) There must be a service running on the host and port specified in the `--local` flag provided to the `wireport service publish` command
 
-## 3. Connectiong CLIENTs to the wireport private network
+</details>
 
-### 3.1. Generating a WireGuard configuration
+<details>
+<summary>Flags explained</summary>
 
-On the HOST node:
+* **--local** – URL of the service **on the machine where you run the command** (or another node from the newly created WireGuard network)
+* **--public** – External protocol / hostname / port that will be reachable on the HOST
+* Automatically provisions a trusted TLS certificate and updates Caddy's reverse proxy
 
-```bash
-docker exec -it wireport-host bash
-# ... then, from inside the contaienr:
-wireport client new
-```
+</details>
 
-- copy the WireGuard configuration and feed it to your local WireGuard client.
+---
 
-## 4. Attach **wgp-net** network to docker services on SERVER node that should be exposed via wireport, e.g.:
+## Other useful operations
 
-For an already-running container:
+Need more? Here are some other useful commands:
 
-```bash
-docker network connect wgp-net <CONTAINER-NAME>
-```
+| Purpose | Command |
+|---------|---------|
+| Add a workload SERVER | `wireport server up ubuntu@<SERVER_IP>` |
+| Remove a public endpoint | `wireport service unpublish -p https://demo.example.com:443` |
+| Adjust headers/timeouts etc. | `wireport service params new -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
+| Issue extra WireGuard profiles | `wireport client new` |
+| Tear down a HOST | `wireport host down <HOST_ID>` |
+| Tear down a SERVER| `wireport server down ubuntu@<SERVER_IP>` |
 
-When launching a new docker service:
-
-```bash
-docker run --network=wgp-net ... <PARAMS>
-```
-
-**Done!**
-Enjoy secure access to your private services, published on the SERVER, locally and remotely over the wireport.
+Refer to `wireport --help` or the documentation for the full CLI reference.
 
 ## Security Considerations
 
 - The host container runs with privileged access for network configuration
 - All traffic is encrypted using WireGuard
-- Control traffic is encrypted using AES in CBC mode
+- Control traffic is encrypted (TLS)
 - HTTPS is configurable for secure web access to exposed services
 
 ## Troubleshooting
@@ -143,8 +134,8 @@ If you encounter issues:
 1. Check service logs: `docker logs wireport-host` or `docker logs wireport-server`
 2. Verify firewall status & make sure all required ports are open
 3. Check status of the WireGuard network inside the HOST and SERVER wireport containers using `wg show` and other WireGuard commands
-4. Check ping'ability of private services from inside HOST, SERVER and CLIENT nodes (e.g., docker services, )
-5. If a private service is not reachable, check whether it's docker container is connected to `wgp-net` network
+4. Check pingability of private services from inside HOST, SERVER and CLIENT nodes
+5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to `wireport-net` docker network (wireport agent manages this automatically).
 
 ## License
 
