@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet.</strong><br />
+  <strong>Self-hosted ingress proxy and VPN tunnel that securely exposes private Docker services to the Internet.</strong><br />
   Powered by WireGuard, CoreDNS and Caddy
 </p>
 
@@ -21,7 +21,7 @@
 ---
 
 
-**wireport** is a self-hosted subnet proxy and VPN tunnel that securely exposes private Docker services to the Internet. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
+**wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private Docker services to the Internet. Powered by WireGuard (networking), CoreDNS and Caddy (reverse proxy).
 
 - Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
 - Exposing Docker services, running in a local network (e.g., on the local machine, on a corporate network, on a NAS or on a home server), to the Internet
