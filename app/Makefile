@@ -9,7 +9,7 @@ ARCHS := amd64 arm64
 OSES := linux darwin windows
 
 # Package metadata
-PKG_DESCRIPTION := wireport - subnet proxy and VPN tunnel
+PKG_DESCRIPTION := wireport - ingress proxy and VPN tunnel
 PKG_MAINTAINER := MultionLabs <team@multionlabs.com>
 PKG_VENDOR := MultionLabs
 PKG_HOMEPAGE := https://github.com/MultionLabs/wireport
