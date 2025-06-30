@@ -49,7 +49,7 @@ Get up and running in just **two commands**:
 ## 1. Bring a HOST online
 
 ```bash
-wireport host up ubuntu@<HOST_IP> --ssh-key-path ~/.ssh/id_rsa
+wireport host up ssh-user@<HOST_IP> --ssh-key-path ~/.ssh/id_rsa
 ```
 
 <details>
@@ -112,12 +112,12 @@ Need more? Here are some other useful commands:
 
 | Purpose | Command |
 |---------|---------|
-| Add a workload SERVER | `wireport server up ubuntu@<SERVER_IP>` |
+| Add a workload SERVER | `wireport server up sshuser@<SERVER_IP>` |
 | Remove a public endpoint | `wireport service unpublish -p https://demo.example.com:443` |
 | Adjust headers/timeouts etc. | `wireport service params new -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
-| Issue extra WireGuard profiles | `wireport client new` |
+| Create more CLIENTs with access to the WireGuard network | `wireport client new` |
 | Tear down a HOST | `wireport host down <HOST_ID>` |
-| Tear down a SERVER| `wireport server down ubuntu@<SERVER_IP>` |
+| Tear down a SERVER| `wireport server down sshuser@<SERVER_IP>` |
 
 Refer to `wireport --help` or the documentation for the full CLI reference.
 
