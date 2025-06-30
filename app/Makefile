@@ -1,4 +1,4 @@
-VERSION ?= 0.8.0
+VERSION ?= 0.9.0
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 OUT_PATH ?= dist
