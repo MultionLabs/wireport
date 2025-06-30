@@ -9,6 +9,7 @@ import (
 	"wireport/internal/commands/types"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
+	"wireport/internal/publicservices"
 )
 
 type APIService struct {
@@ -123,4 +124,110 @@ func (a *APIService) ServerList() (types.ExecResponseDTO, error) {
 	}
 
 	return serverListResponseDTO, nil
+}
+
+func (a *APIService) ServicePublish(localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+	servicePublishResponseDTO, err := makeSecureRequestWithResponse[types.ServicePublishRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/publish",
+		types.ServicePublishRequestDTO{
+			LocalProtocol:  localProtocol,
+			LocalHost:      localHost,
+			LocalPort:      localPort,
+			PublicProtocol: publicProtocol,
+			PublicHost:     publicHost,
+			PublicPort:     publicPort,
+		})
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return servicePublishResponseDTO, nil
+}
+
+func (a *APIService) ServiceUnpublish(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+	serviceUnpublishResponseDTO, err := makeSecureRequestWithResponse[types.ServiceUnpublishRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/unpublish",
+		types.ServiceUnpublishRequestDTO{
+			PublicProtocol: publicProtocol,
+			PublicHost:     publicHost,
+			PublicPort:     publicPort,
+		})
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serviceUnpublishResponseDTO, nil
+}
+
+func (a *APIService) ServiceList() (types.ExecResponseDTO, error) {
+	serviceListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceListRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/list",
+		types.ServiceListRequestDTO{},
+	)
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serviceListResponseDTO, nil
+}
+
+func (a *APIService) ServiceParamNew(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
+	serviceParamNewResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamNewRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/param/new",
+		types.ServiceParamNewRequestDTO{
+			PublicProtocol: publicProtocol,
+			PublicHost:     publicHost,
+			PublicPort:     publicPort,
+			ParamType:      paramType,
+			ParamValue:     paramValue,
+		})
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serviceParamNewResponseDTO, nil
+}
+
+func (a *APIService) ServiceParamRemove(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
+	serviceParamRemoveResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamRemoveRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/param/remove",
+		types.ServiceParamRemoveRequestDTO{
+			PublicProtocol: publicProtocol,
+			PublicHost:     publicHost,
+			PublicPort:     publicPort,
+			ParamType:      paramType,
+			ParamValue:     paramValue,
+		})
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serviceParamRemoveResponseDTO, nil
+}
+
+func (a *APIService) ServiceParamList(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+	serviceParamListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamListRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/service/param/list",
+		types.ServiceParamListRequestDTO{
+			PublicProtocol: publicProtocol,
+			PublicHost:     publicHost,
+			PublicPort:     publicPort,
+		})
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serviceParamListResponseDTO, nil
 }

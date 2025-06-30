@@ -70,11 +70,6 @@ var PublishServiceCmd = &cobra.Command{
 	Short: "Publish a new public service",
 	Long:  `Publish a new public service that should be exposed to the internet`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.PrintErrf("This command can only be used on a host node\n")
-			return
-		}
-
 		localProtocol, localHost, localPort, err := parseAddress(local)
 
 		if err != nil {
@@ -98,11 +93,6 @@ var UnpublishServiceCmd = &cobra.Command{
 	Short: "Unpublish a public service",
 	Long:  `Unpublish a public service and make it no longer accessible from the internet`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
-			return
-		}
-
 		publicProtocol, publicHost, publicPort, err := parseAddress(public)
 
 		if err != nil {
@@ -119,11 +109,6 @@ var ListServiceCmd = &cobra.Command{
 	Short: "List all published services",
 	Long:  `List all published services (public and local addresses)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
-			return
-		}
-
 		commandsService.ServiceList(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
@@ -133,11 +118,6 @@ var NewParamsServiceCmd = &cobra.Command{
 	Short: "Add a new parameter to a public service",
 	Long:  `Add a new parameter to a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy and so on)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
-			return
-		}
-
 		publicProtocol, publicHost, publicPort, err := parseAddress(public)
 
 		if err != nil {
@@ -154,11 +134,6 @@ var RemoveParamsServiceCmd = &cobra.Command{
 	Short: "Remove a parameter from a public service",
 	Long:  `Remove a parameter from a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy and so on)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
-			return
-		}
-
 		publicProtocol, publicHost, publicPort, err := parseAddress(public)
 
 		if err != nil {
@@ -175,11 +150,6 @@ var ListParamsServiceCmd = &cobra.Command{
 	Short: "List all parameters of a public service",
 	Long:  `List all parameters of a public service (e.g., caddyfile directives)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if !nodesRepository.IsCurrentNodeHost() {
-			cmd.Printf("This command can only be used on a host node\n")
-			return
-		}
-
 		publicProtocol, publicHost, publicPort, err := parseAddress(public)
 
 		if err != nil {
