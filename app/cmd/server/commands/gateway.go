@@ -175,7 +175,7 @@ var StartGatewayCmd = &cobra.Command{
 
 		router := routes.Router(dbInstance)
 
-		commandsService.GatewayStart(*gatewayPublicIP, nodesRepository, publicServicesRepository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), GatewayStartConfigureOnly, router)
+		commandsService.GatewayStart(*gatewayPublicIP, nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), GatewayStartConfigureOnly, router)
 	},
 }
 

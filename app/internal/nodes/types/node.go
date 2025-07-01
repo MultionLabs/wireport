@@ -64,9 +64,10 @@ func init() {
 type NodeRole string
 
 const (
-	NodeRoleGateway NodeRole = "gateway"
-	NodeRoleClient  NodeRole = "client"
-	NodeRoleServer  NodeRole = "server"
+	NodeRoleGateway        NodeRole = "gateway"
+	NodeRoleClient         NodeRole = "client"
+	NodeRoleServer         NodeRole = "server"
+	NodeRoleNonInitialized NodeRole = "non-initialized"
 )
 
 // Node represents a virtual machine in the system (gateway, client, server)

@@ -23,7 +23,9 @@ func RegisterCommands(rootCmd *cobra.Command, db *gorm.DB) {
 	nodesRepository = nodes.NewRepository(db)
 	joinRequestsRepository = joinrequests.NewRepository(db)
 	publicServicesRepository = publicservices.NewRepository(db)
-	commandsService = &commands.Service{}
+	commandsService = &commands.Service{
+		LocalCommandsService: commands.LocalCommandsService{},
+	}
 
 	rootCmd.AddCommand(GatewayCmd)
 	rootCmd.AddCommand(ServerCmd)

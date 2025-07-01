@@ -22,7 +22,9 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	nodesRepository := nodes.NewRepository(db)
 	publicServicesRepository := publicservices.NewRepository(db)
 	joinRequestsRepository := joinrequests.NewRepository(db)
-	commandsService := Service{}
+	commandsService := Service{
+		LocalCommandsService: LocalCommandsService{},
+	}
 
 	mux.HandleFunc("/commands/server/new", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil {

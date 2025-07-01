@@ -12,13 +12,13 @@ import (
 	"wireport/internal/publicservices"
 )
 
-type APIService struct {
+type APICommandsService struct {
 	Host             string
 	Port             uint16
 	ClientCertBundle *mtls.FullClientBundle
 }
 
-func makeSecureRequestWithResponse[RequestType any, ResponseType any](api *APIService, method, endpoint string, request RequestType) (ResponseType, error) {
+func makeSecureRequestWithResponse[RequestType any, ResponseType any](api *APICommandsService, method, endpoint string, request RequestType) (ResponseType, error) {
 	var response ResponseType
 
 	requestBody, err := json.Marshal(request)
@@ -64,7 +64,7 @@ func makeSecureRequestWithResponse[RequestType any, ResponseType any](api *APISe
 	return response, nil
 }
 
-func (a *APIService) ServerNew(force bool, quiet bool, dockerSubnet string) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServerNew(force bool, quiet bool, dockerSubnet string) (types.ExecResponseDTO, error) {
 	serverNewResponseDTO, err := makeSecureRequestWithResponse[types.ServerNewRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/server/new",
 		types.ServerNewRequestDTO{
@@ -81,7 +81,7 @@ func (a *APIService) ServerNew(force bool, quiet bool, dockerSubnet string) (typ
 	return serverNewResponseDTO, nil
 }
 
-func (a *APIService) ClientNew(force bool, quiet bool, wait bool) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ClientNew(force bool, quiet bool, wait bool) (types.ExecResponseDTO, error) {
 	clientNewResponseDTO, err := makeSecureRequestWithResponse[types.ClientNewRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/client/new",
 		types.ClientNewRequestDTO{
@@ -98,7 +98,7 @@ func (a *APIService) ClientNew(force bool, quiet bool, wait bool) (types.ExecRes
 	return clientNewResponseDTO, nil
 }
 
-func (a *APIService) ClientList() (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ClientList() (types.ExecResponseDTO, error) {
 	clientListResponseDTO, err := makeSecureRequestWithResponse[types.ClientListRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/client/list",
 		types.ClientListRequestDTO{},
@@ -112,7 +112,7 @@ func (a *APIService) ClientList() (types.ExecResponseDTO, error) {
 	return clientListResponseDTO, nil
 }
 
-func (a *APIService) ServerList() (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServerList() (types.ExecResponseDTO, error) {
 	serverListResponseDTO, err := makeSecureRequestWithResponse[types.ServerListRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/server/list",
 		types.ServerListRequestDTO{},
@@ -126,7 +126,7 @@ func (a *APIService) ServerList() (types.ExecResponseDTO, error) {
 	return serverListResponseDTO, nil
 }
 
-func (a *APIService) ServicePublish(localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServicePublish(localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
 	servicePublishResponseDTO, err := makeSecureRequestWithResponse[types.ServicePublishRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/publish",
 		types.ServicePublishRequestDTO{
@@ -146,7 +146,7 @@ func (a *APIService) ServicePublish(localProtocol string, localHost string, loca
 	return servicePublishResponseDTO, nil
 }
 
-func (a *APIService) ServiceUnpublish(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServiceUnpublish(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
 	serviceUnpublishResponseDTO, err := makeSecureRequestWithResponse[types.ServiceUnpublishRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/unpublish",
 		types.ServiceUnpublishRequestDTO{
@@ -163,7 +163,7 @@ func (a *APIService) ServiceUnpublish(publicProtocol string, publicHost string, 
 	return serviceUnpublishResponseDTO, nil
 }
 
-func (a *APIService) ServiceList() (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServiceList() (types.ExecResponseDTO, error) {
 	serviceListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceListRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/list",
 		types.ServiceListRequestDTO{},
@@ -177,7 +177,7 @@ func (a *APIService) ServiceList() (types.ExecResponseDTO, error) {
 	return serviceListResponseDTO, nil
 }
 
-func (a *APIService) ServiceParamNew(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServiceParamNew(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
 	serviceParamNewResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamNewRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/param/new",
 		types.ServiceParamNewRequestDTO{
@@ -196,7 +196,7 @@ func (a *APIService) ServiceParamNew(publicProtocol string, publicHost string, p
 	return serviceParamNewResponseDTO, nil
 }
 
-func (a *APIService) ServiceParamRemove(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServiceParamRemove(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
 	serviceParamRemoveResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamRemoveRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/param/remove",
 		types.ServiceParamRemoveRequestDTO{
@@ -215,7 +215,7 @@ func (a *APIService) ServiceParamRemove(publicProtocol string, publicHost string
 	return serviceParamRemoveResponseDTO, nil
 }
 
-func (a *APIService) ServiceParamList(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
+func (a *APICommandsService) ServiceParamList(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
 	serviceParamListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamListRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/service/param/list",
 		types.ServiceParamListRequestDTO{
