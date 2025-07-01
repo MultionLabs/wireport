@@ -552,6 +552,32 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 	}
 }
 
+func (s *LocalCommandsService) ServerRemove(nodesRepository *nodes.Repository, _ io.Writer, errOut io.Writer, serverNodeID string) {
+	currentNode, err := nodesRepository.GetCurrentNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		return
+	}
+
+	if currentNode == nil {
+		fmt.Fprintf(errOut, "No current node found\n")
+		return
+	}
+
+	if currentNode.Role != types.NodeRoleGateway {
+		fmt.Fprintf(errOut, "Current node is not a server node\n")
+		return
+	}
+
+	err = nodesRepository.DeleteServer(serverNodeID)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get server node: %v\n", err)
+		return
+	}
+}
+
 func (s *LocalCommandsService) ServerStart(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
 	fmt.Fprintf(stdOut, "Starting wireport server\n")
 

@@ -22,6 +22,10 @@ type ServerNewRequestDTO struct {
 	DockerSubnet string `json:"dockerSubnet"`
 }
 
+type ServerRemoveRequestDTO struct {
+	NodeID string `json:"nodeID"`
+}
+
 type ClientNewRequestDTO struct {
 	JoinRequest bool `json:"joinRequest"`
 	Quiet       bool `json:"quiet"`

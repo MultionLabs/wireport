@@ -242,6 +242,35 @@ func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepos
 	)
 }
 
+func (s *Service) ServerRemove(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, serverNodeID string) {
+	s.executeCommand(
+		nodesRepository,
+		"Failed to remove server",
+		stdOut,
+		errOut,
+		[]RoleGroup{
+			{
+				Roles: []types.NodeRole{types.NodeRoleServer},
+				Handler: s.createAPIHandler(
+					nodesRepository,
+					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
+						return api.ServerRemove(serverNodeID)
+					},
+					stdOut,
+					errOut,
+					"Failed to remove server",
+				),
+			},
+			{
+				Roles: []types.NodeRole{types.NodeRoleGateway},
+				Handler: s.createLocalHandler(func() {
+					s.LocalCommandsService.ServerRemove(nodesRepository, stdOut, errOut, serverNodeID)
+				}),
+			},
+		},
+	)
+}
+
 func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		nodesRepository,
@@ -288,10 +317,33 @@ func (s *Service) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Crede
 		errOut,
 		[]RoleGroup{
 			{
-				Roles: []types.NodeRole{types.NodeRoleClient, types.NodeRoleServer},
+				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
 					s.LocalCommandsService.ServerDown(nodesRepository, creds, stdOut, errOut)
 				}),
+			},
+			{
+				Roles: []types.NodeRole{types.NodeRoleServer},
+				Handler: s.createAPIHandler(
+					nodesRepository,
+					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
+						// 1. Tear down server node
+						s.LocalCommandsService.ServerDown(nodesRepository, creds, stdOut, errOut)
+
+						currentNode, err := nodesRepository.GetCurrentNode()
+
+						if err != nil {
+							return commandstypes.ExecResponseDTO{}, fmt.Errorf("failed to get current node: %v", err)
+						}
+
+						// 2. Remove server node from the gateway
+
+						return api.ServerRemove(currentNode.ID)
+					},
+					stdOut,
+					errOut,
+					"Failed to tear down server node",
+				),
 			},
 		},
 	)

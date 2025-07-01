@@ -77,6 +77,63 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		logger.Info("[%s] Server new response: %v", r.Method, response)
 	})
 
+	mux.HandleFunc("/commands/server/remove", func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			logger.Error("[%s] Server remove request is not over TLS; dropping request", r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		stdOut := bytes.NewBufferString("")
+		errOut := bytes.NewBufferString("")
+
+		var serverRemoveRequestDTO types.ServerRemoveRequestDTO
+
+		err := json.NewDecoder(r.Body).Decode(&serverRemoveRequestDTO)
+
+		if err != nil {
+			logger.Error("[%s] Failed to parse server remove request: %v", r.Method, err)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		if serverRemoveRequestDTO.NodeID != r.TLS.PeerCertificates[0].Subject.CommonName {
+			logger.Error("[%s] Server can only remove itself; node removal request came from a different node: requested node ID: %s, current node ID: %s", r.Method, serverRemoveRequestDTO.NodeID, r.TLS.PeerCertificates[0].Subject.CommonName)
+			http.Error(w, "", http.StatusBadRequest)
+			return
+		}
+
+		commandsService.ServerRemove(nodesRepository, stdOut, errOut, serverRemoveRequestDTO.NodeID)
+
+		exitCode := 0
+
+		if len(errOut.String()) > 0 {
+			exitCode = 1
+		}
+
+		response := types.ExecResponseDTO{
+			Stdout:   strings.TrimSpace(stdOut.String()),
+			Stderr:   strings.TrimSpace(errOut.String()),
+			ExitCode: exitCode,
+		}
+
+		err = json.NewEncoder(w).Encode(response)
+
+		if err != nil {
+			logger.Error("[%s] Failed to encode server remove response: %v", r.Method, err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("[%s] Server remove response: %v", r.Method, response)
+	})
+
 	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil {
 			logger.Error("[%s] Server list request is not over TLS; dropping request", r.Method)

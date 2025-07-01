@@ -81,6 +81,22 @@ func (a *APICommandsService) ServerNew(force bool, quiet bool, dockerSubnet stri
 	return serverNewResponseDTO, nil
 }
 
+func (a *APICommandsService) ServerRemove(nodeID string) (types.ExecResponseDTO, error) {
+	serverRemoveResponseDTO, err := makeSecureRequestWithResponse[types.ServerRemoveRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/server/remove",
+		types.ServerRemoveRequestDTO{
+			NodeID: nodeID,
+		},
+	)
+
+	if err != nil {
+		logger.Error("Failed to marshal request body: %v", err)
+		return types.ExecResponseDTO{}, err
+	}
+
+	return serverRemoveResponseDTO, nil
+}
+
 func (a *APICommandsService) ClientNew(force bool, quiet bool, wait bool) (types.ExecResponseDTO, error) {
 	clientNewResponseDTO, err := makeSecureRequestWithResponse[types.ClientNewRequestDTO, types.ExecResponseDTO](
 		a, "POST", "/commands/client/new",

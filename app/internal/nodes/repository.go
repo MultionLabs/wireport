@@ -762,3 +762,15 @@ func (r *Repository) GetNodesByRole(role types.NodeRole) ([]types.Node, error) {
 
 	return nodes, nil
 }
+
+func (r *Repository) DeleteServer(nodeID string) error {
+	var node types.Node
+
+	result := r.db.Delete(&node, "id = ? AND role = ?", nodeID, types.NodeRoleServer)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
