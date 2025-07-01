@@ -713,7 +713,7 @@ func (s *LocalCommandsService) ServerStatus(creds *ssh.Credentials, stdOut io.Wr
 	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
 }
 
-func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
+func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🚀 wireport Server Connect\n")
@@ -737,7 +737,7 @@ func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinR
 	stdOutWriter := bytes.NewBufferString("")
 	errOutWriter := bytes.NewBufferString("")
 
-	s.ServerNew(false, true, dockerSubnet, nodesRepository, joinRequestsRepository, stdOutWriter, errOutWriter)
+	commandsService.ServerNew(nodesRepository, joinRequestsRepository, stdOutWriter, errOutWriter, false, true, dockerSubnet)
 
 	if len(errOutWriter.String()) > 0 || len(stdOutWriter.String()) == 0 {
 		fmt.Fprintf(errOut, "%s\n", errOutWriter.String())
@@ -763,7 +763,7 @@ func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinR
 	fmt.Fprintf(stdOut, "   Status: ✅ Connection Completed\n\n")
 
 	// Verification
-	fmt.Fprintf(stdOut, "✅ Verifying connection...\n")
+	fmt.Fprintf(stdOut, "✅ Verifying installation...\n")
 	installationConfirmed, err := sshService.IsWireportServerContainerRunning()
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
@@ -790,7 +790,8 @@ func (s *LocalCommandsService) ServerDown(nodesRepository *nodes.Repository, cre
 		return
 	}
 
-	if currentNode.Role == node_types.NodeRoleServer {
+	switch currentNode.Role {
+	case node_types.NodeRoleServer:
 		err = dockerutils.DetachDockerNetworkFromAllContainers()
 
 		if err != nil {

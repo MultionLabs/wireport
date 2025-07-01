@@ -220,13 +220,18 @@ var DownGatewayCmd = &cobra.Command{
 	Use:   "down [username@hostname[:port]]",
 	Short: "Stop wireport gateway node",
 	Long:  `Stop wireport gateway node. It will stop the wireport gateway node and remove all data from the gateway node.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, true)
+		var creds *ssh.Credentials
+		var err error
 
-		if err != nil {
-			cmd.PrintErrf("❌ Error: %v\n", err)
-			return
+		if len(args) > 0 {
+			creds, err = buildSSHCredentials(cmd, args, true)
+
+			if err != nil {
+				cmd.PrintErrf("❌ Error: %v\n", err)
+				return
+			}
 		}
 
 		commandsService.GatewayDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
