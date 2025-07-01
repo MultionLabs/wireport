@@ -64,12 +64,12 @@ func init() {
 type NodeRole string
 
 const (
-	NodeRoleHost   NodeRole = "host"
-	NodeRoleClient NodeRole = "client"
-	NodeRoleServer NodeRole = "server"
+	NodeRoleGateway NodeRole = "gateway"
+	NodeRoleClient  NodeRole = "client"
+	NodeRoleServer  NodeRole = "server"
 )
 
-// Node represents a virtual machine in the system (host, client, server)
+// Node represents a virtual machine in the system (gateway, client, server)
 type Node struct {
 	ID   string   `gorm:"type:text;primary_key"`
 	Role NodeRole `gorm:"type:text;not null"`
@@ -86,10 +86,10 @@ type Node struct {
 
 	ConnectionEncryptionKey *string `gorm:"type:text"`
 
-	HostPublicIP     string                 `gorm:"type:text;not null"`
-	HostPublicPort   uint16                 `gorm:"type:integer;not null"`
-	HostCertBundle   *mtls.FullHostBundle   `gorm:"type:text;serializer:json"`
-	ClientCertBundle *mtls.FullClientBundle `gorm:"type:text;serializer:json"`
+	GatewayPublicIP   string                  `gorm:"type:text;not null"`
+	GatewayPublicPort uint16                  `gorm:"type:integer;not null"`
+	GatewayCertBundle *mtls.FullGatewayBundle `gorm:"type:text;serializer:json"`
+	ClientCertBundle  *mtls.FullClientBundle  `gorm:"type:text;serializer:json"`
 
 	DockerSubnet *IPNetMarshable `gorm:"type:text;serializer:json"`
 
@@ -157,8 +157,8 @@ func (n *Node) GetFormattedWireguardConfig() (*string, error) {
 }
 
 func (n *Node) GetFormattedResolvConfig() (*string, error) {
-	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
-		return nil, errors.New("only host and server nodes can have a resolv config")
+	if n.Role != NodeRoleGateway && n.Role != NodeRoleServer {
+		return nil, errors.New("only gateway and server nodes can have a resolv config")
 	}
 
 	template, err := templates.Configs.ReadFile(config.Config.ResolvConfigTemplatePath)
@@ -183,8 +183,8 @@ func (n *Node) GetFormattedResolvConfig() (*string, error) {
 }
 
 func (n *Node) GetFormattedCaddyConfig(publicServices []*publicservices.PublicService) (*string, error) {
-	if n.Role != NodeRoleHost {
-		return nil, errors.New("only host nodes can have a Caddy config")
+	if n.Role != NodeRoleGateway {
+		return nil, errors.New("only gateway nodes can have a Caddy config")
 	}
 
 	template, err := templates.Configs.ReadFile(config.Config.CaddyConfigTemplatePath)
@@ -264,8 +264,8 @@ func (n *Node) GetFormattedCoreDNSConfig() (*string, error) {
 }
 
 func (n *Node) SaveConfigs(publicServices []*publicservices.PublicService, configsMustExist bool) error {
-	if n.Role != NodeRoleHost && n.Role != NodeRoleServer {
-		return errors.New("config saving is only relevant to host and server nodes")
+	if n.Role != NodeRoleGateway && n.Role != NodeRoleServer {
+		return errors.New("config saving is only relevant to gateway and server nodes")
 	}
 
 	wireguardConfig, _ := n.GetFormattedWireguardConfig()
@@ -304,7 +304,7 @@ func (n *Node) SaveConfigs(publicServices []*publicservices.PublicService, confi
 		}
 	}
 
-	if n.Role == NodeRoleHost || n.Role == NodeRoleServer {
+	if n.Role == NodeRoleGateway || n.Role == NodeRoleServer {
 		if wireguardConfig != nil {
 			logger.Info("Writing wireguard config to %s", config.Config.WireguardConfigPath)
 			err := os.WriteFile(config.Config.WireguardConfigPath, []byte(*wireguardConfig), 0644)
@@ -319,7 +319,7 @@ func (n *Node) SaveConfigs(publicServices []*publicservices.PublicService, confi
 			}
 		}
 
-		if n.Role == NodeRoleHost {
+		if n.Role == NodeRoleGateway {
 			if caddyConfig != nil {
 				logger.Info("Writing caddy config to %s", config.Config.CaddyConfigPath)
 				err := os.WriteFile(config.Config.CaddyConfigPath, []byte(*caddyConfig), 0644)

@@ -16,17 +16,17 @@ var rootCmd = &cobra.Command{
 	Long: `wireport creates a VPN network that securely exposes remote docker services (by their container names) to both internet and local development environment.
 wireport has nodes of three types:
 
-- HOST: a VPS with a public IP address, accessible from the internet
+- GATEWAY: a VPS with a public IP address, accessible from the internet
 - SERVER: a server to run docker-based workloads on, that should be exposed to both the public internet and local development network (by their container names)
 - CLIENT: a developer machine that connects to the wireport network and has access to the docker-based services from the remote server
 
 Spin up a complete wireport setup in four steps:
 
-1. Start the HOST, on a VPS with a public IP address execute the following command:
+1. Start the GATEWAY, on a VPS with a public IP address execute the following command:
 
-wireport host start
+wireport gateway start
 
-2. Create a new join-request, on the HOST machine inside the wireport docker execute the following command:
+2. Create a new join-request, on the GATEWAY machine inside the wireport docker execute the following command:
 
 wireport server new
 
@@ -38,7 +38,7 @@ wireport join <TOKEN>
 
 -- here use the token you copied in the previous step
 
-4. Create a new CLIENT wireguard configuration; on the HOST machine inside the wireport docker execute the following command:
+4. Create a new CLIENT wireguard configuration; on the GATEWAY machine inside the wireport docker execute the following command:
 
 wireport client new
 

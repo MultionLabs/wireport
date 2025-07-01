@@ -35,7 +35,7 @@ var ListClientCmd = &cobra.Command{
 func init() {
 	NewClientCmd.Flags().BoolVarP(&joinRequestClientCreation, "join-request", "j", false, "Create a join request for connecting a client to wireport network (by default, a client is created, bypassing the join request)")
 	NewClientCmd.Flags().BoolVarP(&quietClientCreation, "quiet", "q", false, "Quiet mode, don't print any output except for the join request token")
-	NewClientCmd.Flags().BoolVarP(&waitClientCreation, "wait", "w", false, "Wait for the client to be created (will check periodically whether there's a host and if a client can be created then)")
+	NewClientCmd.Flags().BoolVarP(&waitClientCreation, "wait", "w", false, "Wait for the client to be created (will check periodically whether there's a gateway node available and if a client can be created then)")
 
 	ClientCmd.AddCommand(NewClientCmd)
 	ClientCmd.AddCommand(ListClientCmd)

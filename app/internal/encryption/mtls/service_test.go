@@ -31,7 +31,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatalf("json marshal failed: %v", err)
 	}
 
-	var objCopy FullHostBundle
+	var objCopy FullGatewayBundle
 	err = json.Unmarshal(data, &objCopy)
 	if err != nil {
 		t.Fatalf("json unmarshal failed: %v", err)
@@ -125,7 +125,7 @@ func TestSerializationAndHTTPSCommunication(t *testing.T) {
 	}
 
 	// Unmarshal to get a copy
-	var unmarshaledBundle FullHostBundle
+	var unmarshaledBundle FullGatewayBundle
 	err = json.Unmarshal(data, &unmarshaledBundle)
 	if err != nil {
 		t.Fatalf("json unmarshal failed: %v", err)

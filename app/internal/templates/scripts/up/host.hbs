@@ -1,7 +1,0 @@
-docker pull {{ wireportHostContainerImage }} && docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
-	-p 51820:51820/udp -p 80:80/tcp -p 443:443/tcp -p 4060:4060/tcp \
-	-e DATABASE_PATH=/app/wireport/wireport.db \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	-v ~/.wireport/host:/app/wireport \
-	--name {{ wireportHostContainerName }} \
-	{{ wireportHostContainerImage }} host

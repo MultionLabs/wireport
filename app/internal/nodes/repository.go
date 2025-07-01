@@ -52,21 +52,21 @@ func (r *Repository) filterNodes(allNodes *[]types.Node, roles []types.NodeRole)
 
 func (r *Repository) updateNodes() error {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		var hostNode types.Node
-		tx.First(&hostNode, "role = ?", types.NodeRoleHost)
+		var gatewayNode types.Node
+		tx.First(&gatewayNode, "role = ?", types.NodeRoleGateway)
 
-		if hostNode.ID == "" {
-			return ErrHostNodeNotFound
+		if gatewayNode.ID == "" {
+			return ErrGatewayNodeNotFound
 		}
 
-		if hostNode.WGPublicIP == nil || hostNode.WGPublicPort == nil {
-			return ErrHostNodePublicIPPortNotFound
+		if gatewayNode.WGPublicIP == nil || gatewayNode.WGPublicPort == nil {
+			return ErrGatewayNodePublicIPPortNotFound
 		}
 
-		var hostEndpoint = types.UDPAddrMarshable{
+		var gatewayEndpoint = types.UDPAddrMarshable{
 			UDPAddr: net.UDPAddr{
-				IP:   net.ParseIP(*hostNode.WGPublicIP),
-				Port: int(*hostNode.WGPublicPort),
+				IP:   net.ParseIP(*gatewayNode.WGPublicIP),
+				Port: int(*gatewayNode.WGPublicPort),
 			},
 		}
 
@@ -84,8 +84,8 @@ func (r *Repository) updateNodes() error {
 		precisePeerIPTemplate := "%s/32"
 		imprecisePeerIPTemplate := "%s/24"
 		for _, node := range oldNodes {
-			// HOST - list of all client and server nodes as peers
-			if node.Role == types.NodeRoleHost {
+			// GATEWAY - list of all client and server nodes as peers
+			if node.Role == types.NodeRoleGateway {
 				// DNS
 				serverNodes := r.filterNodes(&oldNodes, []types.NodeRole{types.NodeRoleServer})
 				dnsServerAddresses := []string{dockerDNS}
@@ -123,7 +123,7 @@ func (r *Repository) updateNodes() error {
 
 			if node.Role == types.NodeRoleServer || node.Role == types.NodeRoleClient {
 				// DNS
-				dnsServerAddresses := []string{types.IPToString(hostNode.WGConfig.Interface.Address.IP)}
+				dnsServerAddresses := []string{types.IPToString(gatewayNode.WGConfig.Interface.Address.IP)}
 
 				// PEERS
 				allowedIPs := []string{}
@@ -135,7 +135,7 @@ func (r *Repository) updateNodes() error {
 				case types.NodeRoleClient:
 					allowedIPs = []string{
 						dockerAllAllowedSubnets,
-						fmt.Sprintf(imprecisePeerIPTemplate, types.IPToString(hostNode.WGConfig.Interface.Address.IP)),
+						fmt.Sprintf(imprecisePeerIPTemplate, types.IPToString(gatewayNode.WGConfig.Interface.Address.IP)),
 					}
 				}
 
@@ -143,8 +143,8 @@ func (r *Repository) updateNodes() error {
 
 				node.WGConfig.Peers = []types.WGConfigPeer{
 					{
-						PublicKey:           hostNode.WGPublicKey,
-						Endpoint:            &hostEndpoint,
+						PublicKey:           gatewayNode.WGPublicKey,
+						Endpoint:            &gatewayEndpoint,
 						AllowedIPs:          types.MapStringsToIPNetMarshables(allowedIPs),
 						PersistentKeepalive: &persistentKeepalive,
 					},
@@ -164,12 +164,12 @@ func (r *Repository) updateNodes() error {
 	return nil
 }
 
-func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint16, hostPublicIP string, hostPublicPort uint16) (*types.Node, error) {
-	logger.Info("Creating host node")
+func (r *Repository) CreateGateway(WGPublicIP types.IPMarshable, WGPublicPort uint16, gatewayPublicIP string, gatewayPublicPort uint16) (*types.Node, error) {
+	logger.Info("Creating gateway node")
 
-	if r.db.First(&types.Node{}, "role = ?", types.NodeRoleHost).RowsAffected > 0 {
-		// only one host node is allowed
-		return nil, ErrHostNodeAlreadyExists
+	if r.db.First(&types.Node{}, "role = ?", types.NodeRoleGateway).RowsAffected > 0 {
+		// only one gateway node is allowed
+		return nil, ErrGatewayNodeAlreadyExists
 	}
 
 	wgPrivateIP, err := r.GetNextAssignableWGPrivateIP()
@@ -178,15 +178,15 @@ func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint1
 		return nil, err
 	}
 
-	var hostInterfaceAddress = types.IPNetMarshable{
+	var gatewayInterfaceAddress = types.IPNetMarshable{
 		IPNet: net.IPNet{
 			IP:   wgPrivateIP.IP,
 			Mask: net.CIDRMask(24, 32),
 		},
 	}
-	var hostInterfacePostUp = "iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE"
-	var hostInterfacePostDown = "iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE"
-	hostInterfaceWGPrivateKey, hostInterfaceWGPublicKey, err := wg.GenerateKeyPair()
+	var gatewayInterfacePostUp = "iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE"
+	var gatewayInterfacePostDown = "iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE"
+	gatewayInterfaceWGPrivateKey, gatewayInterfaceWGPublicKey, err := wg.GenerateKeyPair()
 
 	if err != nil {
 		return nil, err
@@ -194,10 +194,10 @@ func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint1
 
 	nodeID := uuid.New().String()
 
-	hostCertBundle, err := mtls.Generate(mtls.Options{
+	gatewayCertBundle, err := mtls.Generate(mtls.Options{
 		CommonName:  nodeID,
 		Expiry:      config.Config.CertExpiry,
-		IPAddresses: []string{hostPublicIP},
+		IPAddresses: []string{gatewayPublicIP},
 	}, config.Config.CertExpiry)
 
 	if err != nil {
@@ -211,9 +211,9 @@ func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint1
 
 		tx.Find(&clientServerNodes, "role = ? OR role = ?", types.NodeRoleClient, types.NodeRoleServer)
 
-		var hostPeers []types.WGConfigPeer = []types.WGConfigPeer{}
+		var gatewayPeers []types.WGConfigPeer = []types.WGConfigPeer{}
 
-		var hostWGPublicIP = WGPublicIP.String()
+		var gatewayWGPublicIP = WGPublicIP.String()
 		var dockerSubnet *types.IPNetMarshable
 
 		dockerSubnet, err = r.GetNextAssignableDockerSubnet()
@@ -231,28 +231,28 @@ func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint1
 
 		node = &types.Node{
 			ID:           nodeID,
-			Role:         types.NodeRoleHost,
-			WGPrivateKey: hostInterfaceWGPrivateKey,
-			WGPublicKey:  hostInterfaceWGPublicKey,
+			Role:         types.NodeRoleGateway,
+			WGPrivateKey: gatewayInterfaceWGPrivateKey,
+			WGPublicKey:  gatewayInterfaceWGPublicKey,
 			WGConfig: types.WGConfig{
 				Interface: types.WGConfigInterface{
-					Address:    hostInterfaceAddress,
+					Address:    gatewayInterfaceAddress,
 					ListenPort: &WGPublicPort,
-					PrivateKey: hostInterfaceWGPrivateKey,
+					PrivateKey: gatewayInterfaceWGPrivateKey,
 					DNS:        []types.IPNetMarshable{}, // refreshed in updateNodes
-					PostUp:     hostInterfacePostUp,
-					PostDown:   hostInterfacePostDown,
+					PostUp:     gatewayInterfacePostUp,
+					PostDown:   gatewayInterfacePostDown,
 				},
-				Peers: hostPeers, // refreshed in updateNodes
+				Peers: gatewayPeers, // refreshed in updateNodes
 			},
-			WGPublicIP:       &hostWGPublicIP,
-			WGPublicPort:     &WGPublicPort,
-			HostPublicIP:     hostPublicIP,
-			HostPublicPort:   hostPublicPort,
-			HostCertBundle:   hostCertBundle,
-			ClientCertBundle: nil,
-			DockerSubnet:     dockerSubnet,
-			IsCurrentNode:    true, // only create on host node
+			WGPublicIP:        &gatewayWGPublicIP,
+			WGPublicPort:      &WGPublicPort,
+			GatewayPublicIP:   gatewayPublicIP,
+			GatewayPublicPort: gatewayPublicPort,
+			GatewayCertBundle: gatewayCertBundle,
+			ClientCertBundle:  nil,
+			DockerSubnet:      dockerSubnet,
+			IsCurrentNode:     true, // only create on gateway node
 		}
 
 		result := tx.Create(node)
@@ -265,7 +265,7 @@ func (r *Repository) CreateHost(WGPublicIP types.IPMarshable, WGPublicPort uint1
 	})
 
 	if err != nil {
-		logger.Error("Failed to create host node")
+		logger.Error("Failed to create gateway node")
 		return nil, err
 	}
 
@@ -294,16 +294,16 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 	var node *types.Node
 
 	err = r.db.Transaction(func(tx *gorm.DB) error {
-		var hostNode types.Node
-		tx.First(&hostNode, "role = ?", types.NodeRoleHost)
+		var gatewaytNode types.Node
+		tx.First(&gatewaytNode, "role = ?", types.NodeRoleGateway)
 
-		if hostNode.ID == "" {
-			return errors.New("host node not found")
+		if gatewaytNode.ID == "" {
+			return errors.New("gateway node not found")
 		}
 
 		nodeID := uuid.New().String()
 
-		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+		err = gatewaytNode.GatewayCertBundle.AddClient(mtls.Options{
 			CommonName: nodeID,
 			Expiry:     config.Config.CertExpiry,
 		})
@@ -312,18 +312,18 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 			return err
 		}
 
-		tx.Save(&hostNode)
+		tx.Save(&gatewaytNode)
 
 		var clientCertBundle *mtls.FullClientBundle
 
-		clientCertBundle, err = hostNode.HostCertBundle.GetClientBundlePublic(nodeID)
+		clientCertBundle, err = gatewaytNode.GatewayCertBundle.GetClientBundlePublic(nodeID)
 
 		if err != nil {
 			return err
 		}
 
-		if hostNode.WGPublicIP == nil || hostNode.WGPublicPort == nil {
-			return errors.New("host node public ip or port not found")
+		if gatewaytNode.WGPublicIP == nil || gatewaytNode.WGPublicPort == nil {
+			return errors.New("gateway node public ip or port not found")
 		}
 
 		var wgPrivateIP *types.IPMarshable
@@ -373,15 +373,15 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 				},
 				Peers: []types.WGConfigPeer{
 					{
-						PublicKey: hostNode.WGPublicKey,
+						PublicKey: gatewaytNode.WGPublicKey,
 					},
 				},
 			},
-			HostPublicIP:     hostNode.HostPublicIP,
-			HostPublicPort:   hostNode.HostPublicPort,
-			HostCertBundle:   nil,
-			ClientCertBundle: clientCertBundle,
-			DockerSubnet:     dockerSubnet,
+			GatewayPublicIP:   gatewaytNode.GatewayPublicIP,
+			GatewayPublicPort: gatewaytNode.GatewayPublicPort,
+			GatewayCertBundle: nil,
+			ClientCertBundle:  clientCertBundle,
+			DockerSubnet:      dockerSubnet,
 		}
 
 		result := tx.Create(node)
@@ -441,17 +441,17 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			},
 		}
 
-		var hostNode types.Node
+		var gatewayNode types.Node
 
-		tx.Find(&hostNode, "role = ?", types.NodeRoleHost)
+		tx.Find(&gatewayNode, "role = ?", types.NodeRoleGateway)
 
-		if hostNode.ID == "" {
-			return errors.New("host node not found")
+		if gatewayNode.ID == "" {
+			return errors.New("gateway node not found")
 		}
 
 		nodeID := uuid.New().String()
 
-		err = hostNode.HostCertBundle.AddClient(mtls.Options{
+		err = gatewayNode.GatewayCertBundle.AddClient(mtls.Options{
 			CommonName: nodeID,
 			Expiry:     config.Config.CertExpiry,
 		})
@@ -460,11 +460,11 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			return err
 		}
 
-		tx.Save(&hostNode)
+		tx.Save(&gatewayNode)
 
 		var clientCertBundle *mtls.FullClientBundle
 
-		clientCertBundle, err = hostNode.HostCertBundle.GetClientBundlePublic(nodeID)
+		clientCertBundle, err = gatewayNode.GatewayCertBundle.GetClientBundlePublic(nodeID)
 
 		if err != nil {
 			return err
@@ -483,15 +483,15 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 				},
 				Peers: []types.WGConfigPeer{
 					{
-						PublicKey: hostNode.WGPublicKey,
+						PublicKey: gatewayNode.WGPublicKey,
 					},
 				},
 			},
-			HostPublicIP:     hostNode.HostPublicIP,
-			HostPublicPort:   hostNode.HostPublicPort,
-			HostCertBundle:   nil,
-			ClientCertBundle: clientCertBundle,
-			DockerSubnet:     nil,
+			GatewayPublicIP:   gatewayNode.GatewayPublicIP,
+			GatewayPublicPort: gatewayNode.GatewayPublicPort,
+			GatewayCertBundle: nil,
+			ClientCertBundle:  clientCertBundle,
+			DockerSubnet:      nil,
 		}
 
 		result := tx.Create(node)
@@ -548,10 +548,10 @@ func (r *Repository) GetCurrentNode() (*types.Node, error) {
 	return &node, nil
 }
 
-func (r *Repository) GetHostNode() (*types.Node, error) {
-	var hostNode types.Node
+func (r *Repository) GetGatewayNode() (*types.Node, error) {
+	var gatewayNode types.Node
 
-	result := r.db.First(&hostNode, "role = ?", types.NodeRoleHost)
+	result := r.db.First(&gatewayNode, "role = ?", types.NodeRoleGateway)
 
 	if result.Error != nil {
 		if result.Error.Error() == "record not found" {
@@ -560,13 +560,13 @@ func (r *Repository) GetHostNode() (*types.Node, error) {
 		return nil, result.Error
 	}
 
-	return &hostNode, nil
+	return &gatewayNode, nil
 }
 
 func (r *Repository) IsDockerSubnetAvailable(dockerSubnet *types.IPNetMarshable) bool {
 	var nodes []types.Node
 
-	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleHost)
+	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleGateway)
 
 	if result.Error != nil {
 		return false
@@ -604,7 +604,7 @@ func (r *Repository) IsWGPrivateIPAvailable(WGPrivateIP types.IPMarshable) bool 
 func (r *Repository) TotalAndAvailableDockerSubnets() (int, int, error) {
 	var nodes []types.Node
 
-	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleHost)
+	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleGateway)
 
 	if result.Error != nil {
 		return 0, 0, result.Error
@@ -626,7 +626,7 @@ func (r *Repository) TotalAvailableWireguardClients() (int, int, error) {
 func (r *Repository) GetNextAssignableDockerSubnet() (*types.IPNetMarshable, error) {
 	var nodes []types.Node
 
-	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleHost)
+	result := r.db.Find(&nodes, "role = ? OR role = ?", types.NodeRoleServer, types.NodeRoleGateway)
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -701,24 +701,24 @@ func (r *Repository) GetNextAssignableWGPrivateIP() (*types.IPMarshable, error) 
 	return nil, ErrNoAvailableWGPrivateIPs
 }
 
-func (r *Repository) EnsureHostNode(WGPublicIP types.IPMarshable, WGPublicPort uint16, hostPublicIP string, hostPublicPort uint16) (*types.Node, error) {
-	hostNode, err := r.GetHostNode()
+func (r *Repository) EnsureGatewayNode(WGPublicIP types.IPMarshable, WGPublicPort uint16, gatewayPublicIP string, gatewayPublicPort uint16) (*types.Node, error) {
+	gatewayNode, err := r.GetGatewayNode()
 
 	if err != nil {
 		return nil, err
 	}
 
-	if hostNode == nil {
-		logger.Info("Host node not found, creating host node")
+	if gatewayNode == nil {
+		logger.Info("Gateway node not found, creating gateway node")
 
-		hostNode, err = r.CreateHost(WGPublicIP, WGPublicPort, hostPublicIP, hostPublicPort)
+		gatewayNode, err = r.CreateGateway(WGPublicIP, WGPublicPort, gatewayPublicIP, gatewayPublicPort)
 
 		if err != nil {
-			logger.Error("Failed to create host node: %v", err)
+			logger.Error("Failed to create gateway node: %v", err)
 			return nil, err
 		}
 	} else {
-		err := docker_utils.EnsureDockerNetworkExistsAndAttached(hostNode.DockerSubnet)
+		err := docker_utils.EnsureDockerNetworkExistsAndAttached(gatewayNode.DockerSubnet)
 
 		if err != nil {
 			logger.Error("Failed to ensure docker network exists and is attached to the container: %v", err)
@@ -726,7 +726,7 @@ func (r *Repository) EnsureHostNode(WGPublicIP types.IPMarshable, WGPublicPort u
 		}
 	}
 
-	return hostNode, nil
+	return gatewayNode, nil
 }
 
 func (r *Repository) SaveNode(node *types.Node) error {
@@ -739,7 +739,7 @@ func (r *Repository) SaveNode(node *types.Node) error {
 	return nil
 }
 
-func (r *Repository) IsCurrentNodeHost() bool {
+func (r *Repository) IsCurrentNodeGateway() bool {
 	var node types.Node
 
 	result := r.db.First(&node, "is_current_node = ?", true)
@@ -748,7 +748,7 @@ func (r *Repository) IsCurrentNodeHost() bool {
 		return false
 	}
 
-	return node.Role == types.NodeRoleHost
+	return node.Role == types.NodeRoleGateway
 }
 
 func (r *Repository) GetNodesByRole(role types.NodeRole) ([]types.Node, error) {

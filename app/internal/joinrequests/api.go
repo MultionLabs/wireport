@@ -65,7 +65,7 @@ func (s *APIService) Join(joinToken string, joinRequest *joinrequeststypes.JoinR
 		JoinToken: joinToken,
 	}
 
-	url := fmt.Sprintf("https://%s/commands/join", joinRequest.HostAddress)
+	url := fmt.Sprintf("https://%s/commands/join", joinRequest.GatewayAddress)
 
 	const (
 		maxRetries = 5

@@ -39,27 +39,27 @@
 
 ## Key Concepts
 
-- **HOST** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
+- **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
-- **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the HOST.
+- **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
 ## Quick Start
 
 Get up and running in just **two commands**:
 
 
-#### 1. Bring a HOST online
+#### 1. Bring a GATEWAY online
 
 ```bash
-wireport host up ssh-user@<HOST_IP> --ssh-key-path ~/.ssh/id_rsa
+wireport gateway up ssh-user@<GATEWAY_IP> --ssh-key-path ~/.ssh/id_rsa
 ```
 
 <details>
 <summary><strong>Important – firewall and other prerequisites</strong></summary>
 
-`wireport host up` expects that:
+`wireport gateway up` expects that:
 
-1) the following ports must be reachable on the target HOST machine *before* you run the command:
+1) the following ports must be reachable on the target GATEWAY machine *before* you run the command:
 
 * 22/tcp (SSH)
 * 80/tcp and 443/tcp (HTTP/HTTPS)
@@ -74,8 +74,8 @@ sudo ufw allow 51820/udp
 sudo ufw enable
 ```
 
-2) Docker is installed on the target host machine
-3) The account used for SSH-ing into the target HOST machine has all the necessary permissions for managing Docker containers, images and networks
+2) Docker is installed on the target GATEWAY machine
+3) The account used for SSH-ing into the target GATEWAY machine has all the necessary permissions for managing Docker containers, images and networks
 </details>
 
 #### 2. Publish a local service to the Internet
@@ -89,11 +89,11 @@ wireport service publish \
 <details>
 <summary><strong>Important - DNS config and other prerequisites</strong></summary>
 
-1) For the service to become available over the given public URL, there must be a respective `A`-record in the DNS settings of your domain name provider, pointing to the target **HOST** machine's IP address.
+1) For the service to become available over the given public URL, there must be a respective `A`-record in the DNS settings of your domain name provider, pointing to the target **GATEWAY** machine's IP address.
 
-2) After bootstrapping the host node with `wireport host up ...` command, you should add the respective WireGuard tunnel on your local machine
+2) After bootstrapping the GATEWAY node with `wireport gateway up ...` command, you should add the respective WireGuard tunnel on your local machine
 
-3) There must be a service running on the host and port specified in the `--local` flag provided to the `wireport service publish` command
+3) There must be a service running on the GATEWAY and port specified in the `--local` flag provided to the `wireport service publish` command
 
 </details>
 
@@ -101,7 +101,7 @@ wireport service publish \
 <summary>Flags explained</summary>
 
 * **--local** – URL of the service **on the machine where you run the command** (or another node from the newly created WireGuard network)
-* **--public** – External protocol / hostname / port that will be reachable on the HOST
+* **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
 * Automatically provisions a trusted TLS certificate and updates Caddy's reverse proxy
 
 </details>
@@ -118,14 +118,14 @@ Need more? Here are some other useful commands:
 | Remove a public endpoint | `wireport service unpublish -p https://demo.example.com:443` |
 | Adjust headers/timeouts etc. | `wireport service params new -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
 | Create more CLIENTs with access to the WireGuard network | `wireport client new` |
-| Tear down a HOST | `wireport host down <HOST_ID>` |
+| Tear down a GATEWAY | `wireport gateway down <GATEWAY_IP>` |
 | Tear down a SERVER| `wireport server down sshuser@<SERVER_IP>` |
 
 Refer to `wireport --help` or the documentation for the full CLI reference.
 
 ## Security Considerations
 
-- The host container runs with privileged access for network configuration
+- The gateway container runs with privileged access for network configuration
 - All traffic is encrypted using WireGuard
 - Control traffic is encrypted (TLS)
 - HTTPS is configurable for secure web access to exposed services
@@ -133,10 +133,10 @@ Refer to `wireport --help` or the documentation for the full CLI reference.
 ## Troubleshooting
 
 If you encounter issues:
-1. Check service logs: `docker logs wireport-host` or `docker logs wireport-server`
+1. Check service logs: `docker logs wireport-gateway` or `docker logs wireport-server`
 2. Verify firewall status & make sure all required ports are open
-3. Check status of the WireGuard network inside the HOST and SERVER wireport containers using `wg show` and other WireGuard commands
-4. Check pingability of private services from inside HOST, SERVER and CLIENT nodes
+3. Check status of the WireGuard network inside the GATEWAY and SERVER wireport containers using `wg show` and other WireGuard commands
+4. Check pingability of private services from inside GATEWAY, SERVER and CLIENT nodes
 5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to `wireport-net` docker network (wireport agent manages this automatically).
 
 ## License

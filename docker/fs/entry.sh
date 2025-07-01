@@ -3,13 +3,13 @@
 # avoid overwriting resolv.conf by other components
 echo "resolvconf=NO" >> /etc/resolvconf.conf
 
-if [ "$1" = "host" ]; then
-    # host mode
+if [ "$1" = "gateway" ]; then
+    # gateway mode
 
-    # configure wireport host
-    echo "> Configuring wireport host"
+    # configure wireport gateway
+    echo "> Configuring wireport gateway"
     
-    wireport host start --configure
+    wireport gateway start --configure
 
     # update configuration permissions
     chmod 600 /etc/wireguard/wg0.conf
@@ -23,8 +23,8 @@ elif [ "$1" = "join" ]; then
 
     # disable some services
     mv /etc/service/caddy /etc/service-disabled/
-    mv /etc/service/wireport-host /etc/service-disabled/
-    mv /etc/service/iptables-host /etc/service-disabled/
+    mv /etc/service/wireport-gateway /etc/service-disabled/
+    mv /etc/service/iptables-gateway /etc/service-disabled/
     
     wireport join "$2"
 elif [ "$1" = "server" ]; then
@@ -32,8 +32,8 @@ elif [ "$1" = "server" ]; then
         echo "> Starting wireport server"
 
         mv /etc/service/caddy /etc/service-disabled/
-        mv /etc/service/wireport-host /etc/service-disabled/
-        mv /etc/service/iptables-host /etc/service-disabled/
+        mv /etc/service/wireport-gateway /etc/service-disabled/
+        mv /etc/service/iptables-gateway /etc/service-disabled/
     elif [ "$2" = "down" ]; then
         echo "> Tearing down wireport server"
 
@@ -44,7 +44,7 @@ elif [ "$1" = "server" ]; then
         exit 1
     fi
 else
-    echo "Invalid command. Use 'host' or 'join <TOKEN>'."
+    echo "Invalid command. Use 'gateway' or 'join <TOKEN>'."
     exit 1
 fi
 

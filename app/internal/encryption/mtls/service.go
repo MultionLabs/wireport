@@ -26,7 +26,7 @@ type PEMBundle struct {
 	KeyPEM  string `json:"key_pem"`
 }
 
-type FullHostBundle struct {
+type FullGatewayBundle struct {
 	RootCA    PEMBundle            `json:"root_ca"`
 	Server    PEMBundle            `json:"server"`
 	Clients   map[string]PEMBundle `json:"clients"`
@@ -40,7 +40,7 @@ type FullClientBundle struct {
 }
 
 // Generate creates a full mTLS bundle with root CA and server cert
-func Generate(serverOpt Options, rootExpiry time.Duration) (*FullHostBundle, error) {
+func Generate(serverOpt Options, rootExpiry time.Duration) (*FullGatewayBundle, error) {
 	// Root CA
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
@@ -51,7 +51,7 @@ func Generate(serverOpt Options, rootExpiry time.Duration) (*FullHostBundle, err
 	rootTpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName: "wireport host Root CA",
+			CommonName: "wireport gateway Root CA",
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(rootExpiry),
@@ -90,7 +90,7 @@ func Generate(serverOpt Options, rootExpiry time.Duration) (*FullHostBundle, err
 		return nil, err
 	}
 
-	bundle := &FullHostBundle{
+	bundle := &FullGatewayBundle{
 		RootCA: PEMBundle{
 			CertPEM: string(rootPEM),
 			KeyPEM:  string(rootKeyPEM),
@@ -164,7 +164,7 @@ func createSignedCert(opt Options, caCert *x509.Certificate, caKey *ecdsa.Privat
 }
 
 // AddClient adds a new client cert to an existing bundle
-func (b *FullHostBundle) AddClient(opt Options) error {
+func (b *FullGatewayBundle) AddClient(opt Options) error {
 	if b.Clients == nil {
 		b.Clients = make(map[string]PEMBundle)
 	}
@@ -194,14 +194,14 @@ func (b *FullHostBundle) AddClient(opt Options) error {
 	return nil
 }
 
-func (b *FullHostBundle) RemoveClient(clientName string) error {
+func (b *FullGatewayBundle) RemoveClient(clientName string) error {
 	delete(b.Clients, clientName)
 
 	return nil
 }
 
 // TLSConfigs returns tls.Config for server and client
-func (b *FullHostBundle) TLSConfigs(clientName string) (*tls.Config, *tls.Config, error) {
+func (b *FullGatewayBundle) TLSConfigs(clientName string) (*tls.Config, *tls.Config, error) {
 	if b.Server.KeyPEM == "" || b.Server.CertPEM == "" || b.RootCA.CertPEM == "" {
 		return nil, nil, errors.New("server key, cert or root CA cert is empty")
 	}
@@ -241,14 +241,14 @@ func (b *FullHostBundle) TLSConfigs(clientName string) (*tls.Config, *tls.Config
 }
 
 // PublicOnly returns a copy of the bundle without any private keys
-func (b *FullHostBundle) PublicOnly() *FullHostBundle {
+func (b *FullGatewayBundle) PublicOnly() *FullGatewayBundle {
 	clients := make(map[string]PEMBundle)
 
 	for k, v := range b.Clients {
 		clients[k] = PEMBundle{CertPEM: v.CertPEM}
 	}
 
-	return &FullHostBundle{
+	return &FullGatewayBundle{
 		RootCA:    PEMBundle{CertPEM: b.RootCA.CertPEM},
 		Server:    PEMBundle{CertPEM: b.Server.CertPEM},
 		Clients:   clients,
@@ -257,7 +257,7 @@ func (b *FullHostBundle) PublicOnly() *FullHostBundle {
 }
 
 // GetClientBundlePublic returns a client bundle with Root CA certificate only (no private key)
-func (b *FullHostBundle) GetClientBundlePublic(clientName string) (*FullClientBundle, error) {
+func (b *FullGatewayBundle) GetClientBundlePublic(clientName string) (*FullClientBundle, error) {
 	clientData, ok := b.Clients[clientName]
 
 	if !ok {
@@ -274,7 +274,7 @@ func (b *FullHostBundle) GetClientBundlePublic(clientName string) (*FullClientBu
 }
 
 // GetServerTLSConfig returns tls.Config for server only (for mTLS server setup)
-func (b *FullHostBundle) GetServerTLSConfig() (*tls.Config, error) {
+func (b *FullGatewayBundle) GetServerTLSConfig() (*tls.Config, error) {
 	if b.Server.KeyPEM == "" || b.Server.CertPEM == "" || b.RootCA.CertPEM == "" {
 		return nil, errors.New("server key, cert or root CA cert is empty")
 	}

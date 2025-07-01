@@ -602,7 +602,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 			responsePayload := types.JoinResponseDTO{}
 
-			var serverNode, clientNode, hostNode *node_types.Node
+			var serverNode, clientNode, gatewayNode *node_types.Node
 
 			switch joinRequestFromDB.Role {
 			case node_types.NodeRoleServer:
@@ -614,36 +614,36 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				hostNode, err = nodesRepository.GetHostNode()
+				gatewayNode, err = nodesRepository.GetGatewayNode()
 
-				if err != nil || hostNode == nil {
-					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetHostNode, err)
+				if err != nil || gatewayNode == nil {
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetGatewayNode, err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
 
 				publicServices := publicServicesRepository.GetAll()
 
-				err = hostNode.SaveConfigs(publicServices, false)
+				err = gatewayNode.SaveConfigs(publicServices, false)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveHostConfigs, err)
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveGatewayConfigs, err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
 
-				err = hostNode.HostCertBundle.RemoveClient(joinRequestFromDB.ID)
+				err = gatewayNode.GatewayCertBundle.RemoveClient(joinRequestFromDB.ID)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from host cert bundle", err)
+					logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from gateway cert bundle", err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
 
-				err = nodesRepository.SaveNode(hostNode)
+				err = nodesRepository.SaveNode(gatewayNode)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, "Failed to save host node", err)
+					logger.Error("[%s] %v: %v", r.Method, "Failed to save gateway node", err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
@@ -663,10 +663,10 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				hostNode, err = nodesRepository.GetHostNode()
+				gatewayNode, err = nodesRepository.GetGatewayNode()
 
-				if err != nil || hostNode == nil {
-					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetHostNode, err)
+				if err != nil || gatewayNode == nil {
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetGatewayNode, err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
@@ -675,26 +675,26 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				publicServices := publicServicesRepository.GetAll()
 
-				err = hostNode.SaveConfigs(publicServices, false)
+				err = gatewayNode.SaveConfigs(publicServices, false)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveHostConfigs, err)
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToSaveGatewayConfigs, err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
 
-				err = hostNode.HostCertBundle.RemoveClient(joinRequestFromDB.ID)
+				err = gatewayNode.GatewayCertBundle.RemoveClient(joinRequestFromDB.ID)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from host cert bundle", err)
+					logger.Error("[%s] %v: %v", r.Method, "Failed to remove client from gateway cert bundle", err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}
 
-				err = nodesRepository.SaveNode(hostNode)
+				err = nodesRepository.SaveNode(gatewayNode)
 
 				if err != nil {
-					logger.Error("[%s] %v: %v", r.Method, "Failed to save host node", err)
+					logger.Error("[%s] %v: %v", r.Method, "Failed to save gateway node", err)
 					http.Error(w, "", http.StatusBadRequest)
 					return
 				}

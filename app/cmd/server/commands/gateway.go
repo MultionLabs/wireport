@@ -14,7 +14,7 @@ import (
 	"golang.org/x/term"
 )
 
-var HostStartConfigureOnly = false
+var GatewayStartConfigureOnly = false
 
 func readPasswordSecurely(prompt string) (string, error) {
 	// readPasswordSecurely reads a password from the terminal without echoing
@@ -81,7 +81,7 @@ func parseSSHURL(sshURL string) (username, hostname string, port uint, err error
 }
 
 // buildSSHCredentials builds SSH credentials from positional arguments or database
-func buildSSHCredentials(cmd *cobra.Command, args []string, useHostNodeIfNoArgs bool) (*ssh.Credentials, error) {
+func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoArgs bool) (*ssh.Credentials, error) {
 	creds := &ssh.Credentials{}
 
 	// Try to parse SSH URL from positional argument first
@@ -94,27 +94,27 @@ func buildSSHCredentials(cmd *cobra.Command, args []string, useHostNodeIfNoArgs 
 		creds.Host = hostname
 		creds.Port = port
 	} else {
-		if !useHostNodeIfNoArgs {
+		if !useGatewayNodeIfNoArgs {
 			return nil, fmt.Errorf("SSH host is required. Use positional argument (username@hostname[:port])")
 		}
 
 		// If no positional argument, try to get from database
-		hostNode, err := nodesRepository.GetHostNode()
+		gatewaytNode, err := nodesRepository.GetGatewayNode()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get host node from database: %v", err)
+			return nil, fmt.Errorf("failed to get gateway node from database: %v", err)
 		}
-		if hostNode == nil {
-			return nil, fmt.Errorf("no host node found in database")
+		if gatewaytNode == nil {
+			return nil, fmt.Errorf("no gateway node found in database")
 		}
-		if hostNode.WGPublicIP == nil {
-			return nil, fmt.Errorf("host node public IP not found in database")
+		if gatewaytNode.WGPublicIP == nil {
+			return nil, fmt.Errorf("gateway node public IP not found in database")
 		}
 
 		// Use the public IP as the host
-		creds.Host = *hostNode.WGPublicIP
+		creds.Host = *gatewaytNode.WGPublicIP
 		creds.Port = 22 // Default SSH port
 
-		fmt.Printf("🔍 Using the bootstrapped host node: %s\n", creds.Host)
+		fmt.Printf("🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
 		fmt.Printf("👤 Enter SSH username: ")
 		_, err = fmt.Scanln(&creds.Username)
 
@@ -155,18 +155,18 @@ func buildSSHCredentials(cmd *cobra.Command, args []string, useHostNodeIfNoArgs 
 	return creds, nil
 }
 
-var HostCmd = &cobra.Command{
-	Use:   "host",
-	Short: "wireport host commands",
-	Long:  `Manage wireport host node: configure the host node and start the wireport host node`,
+var GatewayCmd = &cobra.Command{
+	Use:   "gateway",
+	Short: "wireport gateway commands",
+	Long:  `Manage wireport gateway node: configure the gateway node and start the wireport gateway node`,
 }
 
-var StartHostCmd = &cobra.Command{
+var StartGatewayCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start wireport in host mode",
-	Long:  `Start wireport in host mode. It will handle network connections and state management.`,
+	Short: "Start wireport in gateway mode",
+	Long:  `Start wireport in gateway mode. It will handle network connections and state management.`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		hostPublicIP, err := utils.GetPublicIP()
+		gatewayPublicIP, err := utils.GetPublicIP()
 
 		if err != nil {
 			cmd.PrintErrf("Error: %v\n", err)
@@ -175,16 +175,16 @@ var StartHostCmd = &cobra.Command{
 
 		router := routes.Router(dbInstance)
 
-		commandsService.HostStart(*hostPublicIP, nodesRepository, publicServicesRepository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), HostStartConfigureOnly, router)
+		commandsService.GatewayStart(*gatewayPublicIP, nodesRepository, publicServicesRepository, dbInstance, cmd.OutOrStdout(), cmd.ErrOrStderr(), GatewayStartConfigureOnly, router)
 	},
 }
 
-var StatusHostCmd = &cobra.Command{
+var StatusGatewayCmd = &cobra.Command{
 	Use:   "status [username@hostname[:port]]",
-	Short: "Check wireport host node status",
-	Long: `Check the status of wireport host node: SSH connection, Docker installation, and wireport status.
+	Short: "Check wireport gateway node status",
+	Long: `Check the status of wireport gateway node: SSH connection, Docker installation, and wireport status.
 
-If no username@hostname[:port] is provided, the command will use the bootstrapped host node.`,
+If no username@hostname[:port] is provided, the command will use the bootstrapped gateway node.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
@@ -195,14 +195,14 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 			return
 		}
 
-		commandsService.HostStatus(creds, cmd.OutOrStdout())
+		commandsService.GatewayStatus(creds, cmd.OutOrStdout())
 	},
 }
 
-var UpHostCmd = &cobra.Command{
+var UpGatewayCmd = &cobra.Command{
 	Use:   "up username@hostname[:port]",
-	Short: "Start wireport host node",
-	Long:  `Start wireport host node. It will install wireport on the host node.`,
+	Short: "Start wireport gateway node",
+	Long:  `Start wireport gateway node. It will install wireport on the gateway node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true)
@@ -212,14 +212,14 @@ var UpHostCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.HostUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
 	},
 }
 
-var DownHostCmd = &cobra.Command{
+var DownGatewayCmd = &cobra.Command{
 	Use:   "down [username@hostname[:port]]",
-	Short: "Stop wireport host node",
-	Long:  `Stop wireport host node. It will stop the wireport host node and remove all data from the host node.`,
+	Short: "Stop wireport gateway node",
+	Long:  `Stop wireport gateway node. It will stop the wireport gateway node and remove all data from the gateway node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true)
@@ -229,14 +229,14 @@ var DownHostCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.HostDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
 	},
 }
 
-var UpgradeHostCmd = &cobra.Command{
+var UpgradeGatewayCmd = &cobra.Command{
 	Use:   "upgrade [username@hostname[:port]]",
-	Short: "Upgrade wireport host node",
-	Long:  `Upgrade wireport host node. It will upgrade the wireport host node to the latest version.`,
+	Short: "Upgrade wireport gateway node",
+	Long:  `Upgrade wireport gateway node. It will upgrade the wireport gateway node to the latest version.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true)
@@ -246,23 +246,23 @@ var UpgradeHostCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.HostUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
 	},
 }
 
 func init() {
-	HostCmd.AddCommand(StartHostCmd)
-	HostCmd.AddCommand(StatusHostCmd)
-	HostCmd.AddCommand(UpHostCmd)
-	HostCmd.AddCommand(DownHostCmd)
-	HostCmd.AddCommand(UpgradeHostCmd)
+	GatewayCmd.AddCommand(StartGatewayCmd)
+	GatewayCmd.AddCommand(StatusGatewayCmd)
+	GatewayCmd.AddCommand(UpGatewayCmd)
+	GatewayCmd.AddCommand(DownGatewayCmd)
+	GatewayCmd.AddCommand(UpgradeGatewayCmd)
 
-	StartHostCmd.Flags().BoolVar(&HostStartConfigureOnly, "configure", false, "Configure wireport in host mode without making it available for external connections")
+	StartGatewayCmd.Flags().BoolVar(&GatewayStartConfigureOnly, "configure", false, "Configure wireport in gateway mode without making it available for external connections")
 
-	StatusHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	StatusGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
-	UpHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
-	DownHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
-	UpgradeHostCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 }

@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Service provides SSH functionality for wireport host and server nodes
+// Service provides SSH functionality for wireport gateway and server nodes
 type Service struct {
 	client *goph.Client
 	creds  *Credentials
@@ -185,7 +185,7 @@ func (s *Service) GetDockerVersion() (string, error) {
 }
 
 func (s *Service) GetWireportContainerStatus() (string, error) {
-	checkContainerCmd := fmt.Sprintf("docker ps -a --filter name=^/%s$ --format '{{.Status}}'", config.Config.WireportHostContainerName)
+	checkContainerCmd := fmt.Sprintf("docker ps -a --filter name=^/%s$ --format '{{.Status}}'", config.Config.WireportGatewayContainerName)
 	result, err := s.executeCommand(checkContainerCmd)
 	if err != nil {
 		return "", err
@@ -208,19 +208,19 @@ func (s *Service) GetWireportNetworkStatus() (string, error) {
 	return result.Stdout, nil
 }
 
-func (s *Service) InstallWireportHost() (bool, *string, error) {
-	isRunning, err := s.IsWireportHostContainerRunning()
+func (s *Service) InstallWireportGateway() (bool, *string, error) {
+	isRunning, err := s.IsWireportGatewayContainerRunning()
 
 	if err != nil {
 		return false, nil, err
 	}
 
 	if isRunning {
-		fmt.Println("wireport host container is already running, skipping installation")
+		fmt.Println("wireport gateway container is already running, skipping installation")
 		return true, nil, nil
 	}
 
-	installCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpHostScriptTemplatePath)
+	installCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpGatewayScriptTemplatePath)
 
 	if err != nil {
 		return false, nil, err
@@ -235,9 +235,9 @@ func (s *Service) InstallWireportHost() (bool, *string, error) {
 	// 1. install and start wireport
 
 	installCmdStr, err := tpl.Exec(map[string]string{
-		"wireportHostContainerName":  config.Config.WireportHostContainerName,
-		"wireportHostContainerImage": config.Config.WireportHostContainerImage,
-		"wireportVersion":            version.Version,
+		"wireportGatewayContainerName":  config.Config.WireportGatewayContainerName,
+		"wireportGatewayContainerImage": config.Config.WireportGatewayContainerImage,
+		"wireportVersion":               version.Version,
 	})
 
 	if err != nil {
@@ -279,7 +279,7 @@ func (s *Service) createClientJoinToken() (*string, error) {
 	}
 
 	createClientCmdStr, err := tpl.Exec(map[string]string{
-		"wireportHostContainerName": config.Config.WireportHostContainerName,
+		"wireportGatewayContainerName": config.Config.WireportGatewayContainerName,
 	})
 
 	if err != nil {
@@ -293,7 +293,7 @@ func (s *Service) createClientJoinToken() (*string, error) {
 	}
 
 	if cmdResult.ExitCode != 0 {
-		return nil, fmt.Errorf("failed to create client on the host: %s", cmdResult.Stderr)
+		return nil, fmt.Errorf("failed to create client on the gateway: %s", cmdResult.Stderr)
 	}
 
 	clientJoinToken := strings.TrimSpace(cmdResult.Stdout)
@@ -301,7 +301,7 @@ func (s *Service) createClientJoinToken() (*string, error) {
 	return &clientJoinToken, nil
 }
 
-func (s *Service) IsWireportHostContainerRunning() (bool, error) {
+func (s *Service) IsWireportGatewayContainerRunning() (bool, error) {
 	dockerInstalled, err := s.IsDockerInstalled()
 
 	if err != nil {
@@ -322,7 +322,7 @@ func (s *Service) IsWireportHostContainerRunning() (bool, error) {
 		return false, nil
 	}
 
-	checkContainerCmd := fmt.Sprintf("docker ps --filter name=^/%s$ --format '{{.Names}}'", config.Config.WireportHostContainerName)
+	checkContainerCmd := fmt.Sprintf("docker ps --filter name=^/%s$ --format '{{.Names}}'", config.Config.WireportGatewayContainerName)
 	result, err := s.executeCommand(checkContainerCmd)
 
 	if err != nil {
@@ -468,8 +468,8 @@ func (s *Service) TeardownWireportServer() (bool, error) {
 	return true, nil
 }
 
-func (s *Service) UpgradeWireportHost() (bool, error) {
-	upgradeCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpgradeHostScriptTemplatePath)
+func (s *Service) UpgradeWireportGateway() (bool, error) {
+	upgradeCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpgradeGatewayScriptTemplatePath)
 
 	if err != nil {
 		return false, err
@@ -482,9 +482,9 @@ func (s *Service) UpgradeWireportHost() (bool, error) {
 	}
 
 	upgradeCmdStr, err := tpl.Exec(map[string]string{
-		"wireportHostContainerName":  config.Config.WireportHostContainerName,
-		"wireportHostContainerImage": config.Config.WireportHostContainerImage,
-		"wireportVersion":            version.Version,
+		"wireportGatewayContainerName":  config.Config.WireportGatewayContainerName,
+		"wireportGatewayContainerImage": config.Config.WireportGatewayContainerImage,
+		"wireportVersion":               version.Version,
 	})
 
 	if err != nil {
@@ -498,7 +498,7 @@ func (s *Service) UpgradeWireportHost() (bool, error) {
 	}
 
 	if cmdResult.ExitCode != 0 {
-		return false, fmt.Errorf("failed to upgrade wireport host: %s", cmdResult.Stderr)
+		return false, fmt.Errorf("failed to upgrade wireport gateway: %s", cmdResult.Stderr)
 	}
 
 	return true, nil
@@ -540,8 +540,8 @@ func (s *Service) UpgradeWireportServer() (bool, error) {
 	return true, nil
 }
 
-func (s *Service) TeardownWireportHost() (bool, error) {
-	teardownCmdTemplate, err := templates.Scripts.ReadFile(config.Config.DownHostScriptTemplatePath)
+func (s *Service) TeardownWireportGateway() (bool, error) {
+	teardownCmdTemplate, err := templates.Scripts.ReadFile(config.Config.DownGatewayScriptTemplatePath)
 
 	if err != nil {
 		return false, err
@@ -554,9 +554,9 @@ func (s *Service) TeardownWireportHost() (bool, error) {
 	}
 
 	teardownCmdStr, err := tpl.Exec(map[string]string{
-		"wireportHostContainerName":  config.Config.WireportHostContainerName,
-		"wireportHostContainerImage": config.Config.WireportHostContainerImage,
-		"wireportVersion":            version.Version,
+		"wireportGatewayContainerName":  config.Config.WireportGatewayContainerName,
+		"wireportGatewayContainerImage": config.Config.WireportGatewayContainerImage,
+		"wireportVersion":               version.Version,
 	})
 
 	if err != nil {
@@ -570,7 +570,7 @@ func (s *Service) TeardownWireportHost() (bool, error) {
 	}
 
 	if cmdResult.ExitCode != 0 {
-		return false, fmt.Errorf("failed to teardown wireport host: %s", cmdResult.Stderr)
+		return false, fmt.Errorf("failed to teardown wireport gateway: %s", cmdResult.Stderr)
 	}
 
 	return true, nil

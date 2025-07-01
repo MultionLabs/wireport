@@ -66,13 +66,13 @@ type Configuration struct {
 	CaddyConfigTemplatePath   string
 	CoreDNSConfigTemplatePath string
 
-	UpHostScriptTemplatePath        string
-	UpServerScriptTemplatePath      string
-	DownServerScriptTemplatePath    string
-	DownHostScriptTemplatePath      string
-	UpgradeHostScriptTemplatePath   string
-	UpgradeServerScriptTemplatePath string
-	NewClientScriptTemplatePath     string
+	UpGatewayScriptTemplatePath      string
+	UpServerScriptTemplatePath       string
+	DownServerScriptTemplatePath     string
+	DownGatewayScriptTemplatePath    string
+	UpgradeGatewayScriptTemplatePath string
+	UpgradeServerScriptTemplatePath  string
+	NewClientScriptTemplatePath      string
 
 	DockerNetworkName   string
 	DockerNetworkDriver string
@@ -81,10 +81,10 @@ type Configuration struct {
 	CaddyRestartCommand     string
 	CoreDNSRestartCommand   string
 
-	WireportHostContainerName    string
-	WireportHostContainerImage   string
-	WireportServerContainerName  string
-	WireportServerContainerImage string
+	WireportGatewayContainerName  string
+	WireportGatewayContainerImage string
+	WireportServerContainerName   string
+	WireportServerContainerImage  string
 
 	CertExpiry time.Duration
 }
@@ -105,13 +105,13 @@ var Config = &Configuration{
 	CaddyConfigTemplatePath:   "configs/caddy/caddyfile.hbs",
 	CoreDNSConfigTemplatePath: "configs/coredns/corefile.hbs",
 
-	UpHostScriptTemplatePath:        "scripts/up/host.hbs",
-	UpServerScriptTemplatePath:      "scripts/up/server.hbs",
-	DownHostScriptTemplatePath:      "scripts/down/host.hbs",
-	DownServerScriptTemplatePath:    "scripts/down/server.hbs",
-	UpgradeHostScriptTemplatePath:   "scripts/upgrade/host.hbs",
-	UpgradeServerScriptTemplatePath: "scripts/upgrade/server.hbs",
-	NewClientScriptTemplatePath:     "scripts/new/client.hbs",
+	UpGatewayScriptTemplatePath:      "scripts/up/gateway.hbs",
+	UpServerScriptTemplatePath:       "scripts/up/server.hbs",
+	DownGatewayScriptTemplatePath:    "scripts/down/gateway.hbs",
+	DownServerScriptTemplatePath:     "scripts/down/server.hbs",
+	UpgradeGatewayScriptTemplatePath: "scripts/upgrade/gateway.hbs",
+	UpgradeServerScriptTemplatePath:  "scripts/upgrade/server.hbs",
+	NewClientScriptTemplatePath:      "scripts/new/client.hbs",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",
@@ -120,10 +120,10 @@ var Config = &Configuration{
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
 	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
 
-	WireportHostContainerName:    "wireport-host",
-	WireportHostContainerImage:   "anybotsllc/wireport",
-	WireportServerContainerName:  "wireport-server",
-	WireportServerContainerImage: "anybotsllc/wireport",
+	WireportGatewayContainerName:  "wireport-gateway",
+	WireportGatewayContainerImage: "anybotsllc/wireport",
+	WireportServerContainerName:   "wireport-server",
+	WireportServerContainerImage:  "anybotsllc/wireport",
 
 	CertExpiry: time.Hour * 24 * 365 * 5, // 5 years
 }

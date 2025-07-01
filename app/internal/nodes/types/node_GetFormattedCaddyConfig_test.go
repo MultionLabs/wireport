@@ -22,7 +22,7 @@ func TestNode_GetFormattedCaddyConfig(t *testing.T) {
 
 	node := Node{
 		ID:            "1",
-		Role:          NodeRoleHost,
+		Role:          NodeRoleGateway,
 		IsCurrentNode: true,
 		WGPrivateKey:  "1234567890",
 		WGPublicKey:   "1234567890",

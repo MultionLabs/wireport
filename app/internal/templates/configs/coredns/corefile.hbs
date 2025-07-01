@@ -1,7 +1,7 @@
 . {
     loop
     
-    {{#equal Role "host"}}
+    {{#equal Role "gateway"}}
     fanout . {{ipsToDNS WGConfig.Interface.DNS "127.0.0.11" ","}} 8.8.8.8 1.1.1.1 {
         policy sequential
         timeout 1s
