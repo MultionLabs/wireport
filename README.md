@@ -23,7 +23,7 @@
 
 **wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private local and Docker-based services to the Internet. Powered by WireGuard (secure networking), CoreDNS and Caddy (performant reverse proxy).
 
-- Exposing local and Docker-based services, running in a local network (e.g., on the local machine, on a corporate network, on a NAS or on a home server), to the Internet
+- Exposing local and Docker-based services running in a local network (e.g., on the local machine, on a corporate network, on a NAS, or on a home server) to the Internet
 - Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
 
 ## Features
@@ -45,7 +45,7 @@
 
 ## Quick Start
 
-Get up and running in just **two commands** (both executed on the client device - personal laptop/PC):
+Get up and running in just **two commands** (both executed on the client device — personal laptop/PC):
 
 #### 1. Bootstrap a GATEWAY node and dump client WireGuard config to a file
 
@@ -53,7 +53,7 @@ Get up and running in just **two commands** (both executed on the client device 
 wireport gateway up sshuser@140.120.110.10:22
 ```
 
-*(replace SSH username, IP, PORT with the real details of the GATEWAY machine)*
+*(replace SSH username, IP, and PORT with the real details of the GATEWAY machine)*
 
 <details>
 <summary>Sample output</summary>
@@ -107,7 +107,7 @@ PersistentKeepalive = 15
 <details>
 <summary>Advanced usage scenarios</summary>
 
-Use ssh-key with an empty passphrase and dump the WireGuard config straight to the file:
+Use SSH key with an empty passphrase and dump the WireGuard config straight to the file:
 
 ```bash
 wireport gateway up sshuser@140.120.110.10:22 --ssh-key-path ~/.ssh/id_rsa --ssh-key-pass-empty > ~/path/to/wireguard-config.conf
@@ -145,13 +145,23 @@ sudo ufw enable
 wireport relies on [goph](https://github.com/melbahja/goph) for handling SSH connections and executing commands on the target remote machines. The credentials are **never stored** by wireport and they only stay in the memory of your client device for the time of executing the commands (typically, a few seconds).
 </details>
 
-#### 2. Publish a local service to the Internet
+#### 2. Expose a local service to the Internet
 
 ```bash
 wireport service publish \
   --local  http://10.0.0.2:3000 \
   --public https://demo.example.com:443
 ```
+
+<details>
+<summary>Command and flags explained</summary>
+
+This command supports different protocols (HTTP, HTTPS, TCP, UDP) and automatically provisions a free SSL certificate for the domain when an HTTPS-based URL with a domain name is specified in the **--public** parameter, provided that a correct A-record is set up in your domain provider's DNS settings and points to the GATEWAY machine.
+
+* **--local** – URL of the service **on the machine where you run the command** (or another node from the newly created WireGuard network)
+* **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
+
+</details>
 
 <details>
 <summary><strong>Important - DNS config and other prerequisites</strong></summary>
@@ -162,14 +172,7 @@ wireport service publish \
 
 3) There must be a service running and accessible at the address specified in the `--local` flag provided to the `wireport service publish` command (this can be on any CLIENT or SERVER node in the wireport-managed WireGuard network)
 
-</details>
-
-<details>
-<summary>Flags explained</summary>
-
-* **--local** – URL of the service **on the machine where you run the command** (or another node from the newly created WireGuard network)
-* **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
-* Automatically provisions a trusted TLS certificate and updates Caddy's reverse proxy
+4) The following ports are available for exposure on the GATEWAY machine (public url of the exposed service): 80, 443
 
 </details>
 
