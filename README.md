@@ -43,6 +43,8 @@
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
+![wireport general scheme](assets/wireport-general-scheme.png)
+
 ## Quick Start
 
 Get up and running in just **two commands** (both executed on the client device — personal laptop/PC):
