@@ -28,14 +28,13 @@
 
 ## Features
 
-- Secure VPN tunneling (WireGuard)
-- Automatic service discovery and hostname resolution for Docker containers (CoreDNS)
-- HTTP(S) and TCP/UDP (Layer-4) reverse proxy (Caddy)
-- TLS termination and 100% automated certificate provisioning and renewal
-- Quick and easy setup via `wireport` CLI and pre-built Docker image
-- Self-hosted
-- High performance with a low memory footprint
-- Multiplatform CLI (Linux, macOS, Windows — ARM64 & AMD64)
+- SSL/TLS termination with **100% free and automated certificate provisioning and renewal**
+- **Reverse proxy** with support of HTTP(S) and TCP/UDP (Layer-4) (Caddy)
+- **Secure VPN tunneling** (WireGuard)
+- Automatic **service discovery and hostname resolution -- by Docker container names** (CoreDNS)
+- **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64) for [**quick and easy setup**](#quick-start)
+- **Self-hosted** and **open-source**
+- **High performance** with a **low memory footprint**
 
 ## Key Concepts
 
