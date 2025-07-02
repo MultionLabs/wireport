@@ -158,7 +158,7 @@ wireport service publish \
 
 This command supports different protocols (HTTP, HTTPS, TCP, UDP) and automatically provisions a free SSL certificate for the domain when an HTTPS-based URL with a domain name is specified in the **--public** parameter, provided that a correct A-record is set up in your domain provider's DNS settings and points to the GATEWAY machine.
 
-* **--local** – URL of the service **on the machine where you run the command** (or another node from the newly created WireGuard network)
+* **--local** – URL of the service **on the machine where you run the command** (or another CLIENT/SERVER node from the wireport-managed WireGuard network)
 * **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
 
 </details>
