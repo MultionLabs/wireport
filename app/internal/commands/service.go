@@ -56,7 +56,7 @@ func (s *Service) executeCommand(
 	// Determine the role to use for execution
 	var roleToExecute types.NodeRole
 	if currentNode == nil {
-		roleToExecute = types.NodeRoleNonInitialized
+		roleToExecute = types.NodeRoleEmpty
 	} else {
 		roleToExecute = currentNode.Role
 	}
@@ -121,7 +121,7 @@ func (s *Service) createAPIHandler(
 // if the current node role is allowed for the command
 func (s *Service) isRoleAllowed(currentNode *types.Node, allowedRoles []types.NodeRole) bool {
 	if currentNode == nil {
-		return slices.Contains(allowedRoles, types.NodeRoleNonInitialized)
+		return slices.Contains(allowedRoles, types.NodeRoleEmpty)
 	}
 
 	return slices.Contains(allowedRoles, currentNode.Role)
@@ -147,7 +147,7 @@ func (s *Service) GatewayStart(gatewayPublicIP string, nodesRepository *nodes.Re
 		errOut,
 		[]RoleGroup{
 			{
-				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleNonInitialized},
+				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
 					s.LocalCommandsService.GatewayStart(gatewayPublicIP, nodesRepository, publicServicesRepository, stdOut, errOut, gatewayStartConfigureOnly, router)
 				}),
@@ -168,7 +168,7 @@ func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.
 		errOut,
 		[]RoleGroup{
 			{
-				Roles: []types.NodeRole{types.NodeRoleNonInitialized},
+				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
 					s.LocalCommandsService.GatewayUp(creds, nodesRepository, stdOut, errOut)
 				}),
@@ -406,7 +406,7 @@ func (s *Service) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepos
 		errOut,
 		[]RoleGroup{
 			{
-				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleNonInitialized},
+				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
 					s.LocalCommandsService.ClientNew(nodesRepository, joinRequestsRepository, publicServicesRepository, stdOut, errOut, joinRequestClientCreation, quietClientCreation, waitClientCreation)
 				}),
@@ -645,7 +645,7 @@ func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errO
 		errOut,
 		[]RoleGroup{
 			{
-				Roles: []types.NodeRole{types.NodeRoleNonInitialized},
+				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
 					s.LocalCommandsService.Join(nodesRepository, stdOut, errOut, joinToken)
 				}),

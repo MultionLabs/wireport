@@ -195,7 +195,7 @@ func (a *APICommandsService) ServiceList() (types.ExecResponseDTO, error) {
 
 func (a *APICommandsService) ServiceParamNew(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
 	serviceParamNewResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamNewRequestDTO, types.ExecResponseDTO](
-		a, "POST", "/commands/service/param/new",
+		a, "POST", "/commands/service/params/new",
 		types.ServiceParamNewRequestDTO{
 			PublicProtocol: publicProtocol,
 			PublicHost:     publicHost,
@@ -214,7 +214,7 @@ func (a *APICommandsService) ServiceParamNew(publicProtocol string, publicHost s
 
 func (a *APICommandsService) ServiceParamRemove(publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) (types.ExecResponseDTO, error) {
 	serviceParamRemoveResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamRemoveRequestDTO, types.ExecResponseDTO](
-		a, "POST", "/commands/service/param/remove",
+		a, "POST", "/commands/service/params/remove",
 		types.ServiceParamRemoveRequestDTO{
 			PublicProtocol: publicProtocol,
 			PublicHost:     publicHost,
@@ -233,7 +233,7 @@ func (a *APICommandsService) ServiceParamRemove(publicProtocol string, publicHos
 
 func (a *APICommandsService) ServiceParamList(publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
 	serviceParamListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceParamListRequestDTO, types.ExecResponseDTO](
-		a, "POST", "/commands/service/param/list",
+		a, "POST", "/commands/service/params/list",
 		types.ServiceParamListRequestDTO{
 			PublicProtocol: publicProtocol,
 			PublicHost:     publicHost,

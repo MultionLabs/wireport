@@ -11,9 +11,8 @@ type ExecRequestDTO struct {
 }
 
 type ExecResponseDTO struct {
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-	ExitCode int    `json:"exit_code"`
+	Stdout string `json:"stdout"`
+	Stderr string `json:"stderr"`
 }
 
 type ServerNewRequestDTO struct {

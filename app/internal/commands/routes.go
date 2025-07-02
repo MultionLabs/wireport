@@ -18,592 +18,174 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
-	nodesRepository := nodes.NewRepository(db)
-	publicServicesRepository := publicservices.NewRepository(db)
-	joinRequestsRepository := joinrequests.NewRepository(db)
-	commandsService := Service{
-		LocalCommandsService: LocalCommandsService{},
+// a function that handles a specific command
+type RouteHandler func(w http.ResponseWriter, r *http.Request, services *Services)
+type Services struct {
+	NodesRepository          *nodes.Repository
+	PublicServicesRepository *publicservices.Repository
+	JoinRequestsRepository   *joinrequests.Repository
+	CommandsService          Service
+}
+
+// a command execution function
+type CommandHandler func(stdOut, errOut *bytes.Buffer) error
+
+// common request validation
+func validateRequest(w http.ResponseWriter, r *http.Request, operation string) bool {
+	if r.TLS == nil {
+		logger.Error("[%s] %s request is not over TLS; dropping request", r.Method, operation)
+		http.Error(w, "", http.StatusBadRequest)
+		return false
 	}
 
+	if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+		logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
+		http.Error(w, "", http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
+// a generic handler for requests (request body validation and parsing)
+func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(*T, *bytes.Buffer, *bytes.Buffer) error) {
+	operation := r.URL.Path
+	if !validateRequest(w, r, operation) {
+		return
+	}
+
+	var requestDTO T
+	err := json.NewDecoder(r.Body).Decode(&requestDTO)
+	if err != nil {
+		logger.Error("[%s] Failed to parse %s request: %v", r.Method, operation, err)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	stdOut := bytes.NewBufferString("")
+	errOut := bytes.NewBufferString("")
+
+	err = handler(&requestDTO, stdOut, errOut)
+	if err != nil {
+		logger.Error("[%s] Failed to execute %s: %v", r.Method, operation, err)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	response := types.ExecResponseDTO{
+		Stdout: strings.TrimSpace(stdOut.String()),
+		Stderr: strings.TrimSpace(errOut.String()),
+	}
+
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		logger.Error("[%s] Failed to encode %s response: %v", r.Method, operation, err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, response.Stdout[:min(len(response.Stdout), 100)], response.Stderr[:min(len(response.Stderr), 100)])
+}
+
+func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
+	services := &Services{
+		NodesRepository:          nodes.NewRepository(db),
+		PublicServicesRepository: publicservices.NewRepository(db),
+		JoinRequestsRepository:   joinrequests.NewRepository(db),
+		CommandsService: Service{
+			LocalCommandsService: LocalCommandsService{},
+		},
+	}
+
+	// Server routes
 	mux.HandleFunc("/commands/server/new", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Server new request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serverNewRequestDTO types.ServerNewRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serverNewRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse server new request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServerNew(nodesRepository, joinRequestsRepository, stdOut, errOut, serverNewRequestDTO.Force, serverNewRequestDTO.Quiet, serverNewRequestDTO.DockerSubnet)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode server new response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Server new response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(req *types.ServerNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServerNew(services.NodesRepository, services.JoinRequestsRepository, stdOut, errOut, req.Force, req.Quiet, req.DockerSubnet)
+			return nil
+		})
 	})
 
 	mux.HandleFunc("/commands/server/remove", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Server remove request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		var serverRemoveRequestDTO types.ServerRemoveRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serverRemoveRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse server remove request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if serverRemoveRequestDTO.NodeID != r.TLS.PeerCertificates[0].Subject.CommonName {
-			logger.Error("[%s] Server can only remove itself; node removal request came from a different node: requested node ID: %s, current node ID: %s", r.Method, serverRemoveRequestDTO.NodeID, r.TLS.PeerCertificates[0].Subject.CommonName)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		commandsService.ServerRemove(nodesRepository, stdOut, errOut, serverRemoveRequestDTO.NodeID)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode server remove response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Server remove response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(req *types.ServerRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			if req.NodeID != r.TLS.PeerCertificates[0].Subject.CommonName {
+				logger.Error("[%s] Server can only remove itself; node removal request came from a different node: requested node ID: %s, current node ID: %s", r.Method, req.NodeID, r.TLS.PeerCertificates[0].Subject.CommonName)
+				return ErrFailedToCreateServerNode
+			}
+			services.CommandsService.ServerRemove(services.NodesRepository, stdOut, errOut, req.NodeID)
+			return nil
+		})
 	})
 
 	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Server list request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
-
-		var serverListRequestDTO types.ServerListRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serverListRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse server list request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServerList(nodesRepository, &requestFromNodeID, stdOut, errOut)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode server list response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Server list response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(_ *types.ServerListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+			services.CommandsService.ServerList(services.NodesRepository, &requestFromNodeID, stdOut, errOut)
+			return nil
+		})
 	})
 
+	// Client routes
 	mux.HandleFunc("/commands/client/new", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Client new request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var clientNewRequestDTO types.ClientNewRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&clientNewRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse client new request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ClientNew(nodesRepository, joinRequestsRepository, publicServicesRepository, stdOut, errOut, clientNewRequestDTO.JoinRequest, clientNewRequestDTO.Quiet, clientNewRequestDTO.Wait)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode server new response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Client new response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(req *types.ClientNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ClientNew(services.NodesRepository, services.JoinRequestsRepository, services.PublicServicesRepository, stdOut, errOut, req.JoinRequest, req.Quiet, req.Wait)
+			return nil
+		})
 	})
 
 	mux.HandleFunc("/commands/client/list", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Client list request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
-
-		var clientListRequestDTO types.ClientListRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&clientListRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse client list request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ClientList(nodesRepository, &requestFromNodeID, stdOut, errOut)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode client list response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Client list response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(_ *types.ClientListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+			services.CommandsService.ClientList(services.NodesRepository, &requestFromNodeID, stdOut, errOut)
+			return nil
+		})
 	})
 
+	// Service routes
 	mux.HandleFunc("/commands/service/publish", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service publish request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var servicePublishRequestDTO types.ServicePublishRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&servicePublishRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service publish request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServicePublish(nodesRepository, publicServicesRepository, stdOut, errOut, servicePublishRequestDTO.LocalProtocol, servicePublishRequestDTO.LocalHost, servicePublishRequestDTO.LocalPort, servicePublishRequestDTO.PublicProtocol, servicePublishRequestDTO.PublicHost, servicePublishRequestDTO.PublicPort)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service publish response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service publish response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(req *types.ServicePublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServicePublish(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			return nil
+		})
 	})
 
 	mux.HandleFunc("/commands/service/unpublish", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service unpublish request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serviceUnpublishRequestDTO types.ServiceUnpublishRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serviceUnpublishRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service unpublish request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServiceUnpublish(nodesRepository, publicServicesRepository, stdOut, errOut, serviceUnpublishRequestDTO.PublicProtocol, serviceUnpublishRequestDTO.PublicHost, serviceUnpublishRequestDTO.PublicPort)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service unpublish response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service unpublish response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(req *types.ServiceUnpublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServiceUnpublish(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			return nil
+		})
 	})
 
 	mux.HandleFunc("/commands/service/list", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service list request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serviceListRequestDTO types.ServiceListRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serviceListRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service list request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServiceList(nodesRepository, publicServicesRepository, stdOut, errOut)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service list response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service list response: %v", r.Method, response)
+		handleRequestWithBody(w, r, func(_ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServiceList(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut)
+			return nil
+		})
 	})
 
-	mux.HandleFunc("/commands/service/param/new", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service param new request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serviceParamNewRequestDTO types.ServiceParamNewRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serviceParamNewRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service param new request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServiceParamNew(nodesRepository, publicServicesRepository, stdOut, errOut, serviceParamNewRequestDTO.PublicProtocol, serviceParamNewRequestDTO.PublicHost, serviceParamNewRequestDTO.PublicPort, serviceParamNewRequestDTO.ParamType, serviceParamNewRequestDTO.ParamValue)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service param new response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service param new response: %v", r.Method, response)
+	// Service parameter routes
+	mux.HandleFunc("/commands/service/params/new", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(req *types.ServiceParamNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServiceParamNew(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
+			return nil
+		})
 	})
 
-	mux.HandleFunc("/commands/service/param/remove", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service param remove request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serviceParamRemoveRequestDTO types.ServiceParamRemoveRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serviceParamRemoveRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service param remove request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServiceParamRemove(nodesRepository, publicServicesRepository, stdOut, errOut, serviceParamRemoveRequestDTO.PublicProtocol, serviceParamRemoveRequestDTO.PublicHost, serviceParamRemoveRequestDTO.PublicPort, serviceParamRemoveRequestDTO.ParamType, serviceParamRemoveRequestDTO.ParamValue)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service param remove response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service param remove response: %v", r.Method, response)
+	mux.HandleFunc("/commands/service/params/remove", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(req *types.ServiceParamRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServiceParamRemove(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
+			return nil
+		})
 	})
 
-	mux.HandleFunc("/commands/service/param/list", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Service param list request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
-			logger.Error("[%s] Invalid method or content type: %v", r.Method, r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		var serviceParamListRequestDTO types.ServiceParamListRequestDTO
-
-		err := json.NewDecoder(r.Body).Decode(&serviceParamListRequestDTO)
-
-		if err != nil {
-			logger.Error("[%s] Failed to parse service param list request: %v", r.Method, err)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
-		stdOut := bytes.NewBufferString("")
-		errOut := bytes.NewBufferString("")
-
-		commandsService.ServiceParamList(nodesRepository, publicServicesRepository, stdOut, errOut, serviceParamListRequestDTO.PublicProtocol, serviceParamListRequestDTO.PublicHost, serviceParamListRequestDTO.PublicPort)
-
-		exitCode := 0
-
-		if len(errOut.String()) > 0 {
-			exitCode = 1
-		}
-
-		response := types.ExecResponseDTO{
-			Stdout:   strings.TrimSpace(stdOut.String()),
-			Stderr:   strings.TrimSpace(errOut.String()),
-			ExitCode: exitCode,
-		}
-
-		err = json.NewEncoder(w).Encode(response)
-
-		if err != nil {
-			logger.Error("[%s] Failed to encode service param list response: %v", r.Method, err)
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		logger.Info("[%s] Service param list response: %v", r.Method, response)
+	mux.HandleFunc("/commands/service/params/list", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(req *types.ServiceParamListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServiceParamList(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			return nil
+		})
 	})
 
+	// special case with different response format
 	mux.HandleFunc("/commands/join", func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			logger.Error("[%s] Join request is not over TLS; dropping request", r.Method)
-			http.Error(w, "", http.StatusBadRequest)
-			return
-		}
-
 		if r.TLS == nil {
 			logger.Error("[%s] Join request is not over TLS; dropping request", r.Method)
 			http.Error(w, "", http.StatusBadRequest)
@@ -634,7 +216,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 				return
 			}
 
-			joinRequestFromDB, err := joinRequestsRepository.Get(decryptedJoinRequest.ID)
+			joinRequestFromDB, err := services.JoinRequestsRepository.Get(decryptedJoinRequest.ID)
 
 			if err != nil {
 				logger.Error("[%s] Failed to get join request from DB: %v", r.Method, err)
@@ -665,7 +247,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 			switch joinRequestFromDB.Role {
 			case node_types.NodeRoleServer:
-				serverNode, err = nodesRepository.CreateServer(decryptedJoinRequest.DockerSubnet)
+				serverNode, err = services.NodesRepository.CreateServer(decryptedJoinRequest.DockerSubnet)
 
 				if err != nil {
 					logger.Error("[%s] %v: %v", r.Method, ErrFailedToCreateServerNode, err)
@@ -673,7 +255,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				gatewayNode, err = nodesRepository.GetGatewayNode()
+				gatewayNode, err = services.NodesRepository.GetGatewayNode()
 
 				if err != nil || gatewayNode == nil {
 					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetGatewayNode, err)
@@ -681,7 +263,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				publicServices := publicServicesRepository.GetAll()
+				publicServices := services.PublicServicesRepository.GetAll()
 
 				err = gatewayNode.SaveConfigs(publicServices, false)
 
@@ -699,7 +281,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				err = nodesRepository.SaveNode(gatewayNode)
+				err = services.NodesRepository.SaveNode(gatewayNode)
 
 				if err != nil {
 					logger.Error("[%s] %v: %v", r.Method, "Failed to save gateway node", err)
@@ -714,7 +296,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				responsePayload.NodeConfig = serverNode
 			case node_types.NodeRoleClient:
-				clientNode, err = nodesRepository.CreateClient()
+				clientNode, err = services.NodesRepository.CreateClient()
 
 				if err != nil {
 					logger.Error("[%s] %v: %v", r.Method, ErrFailedToCreateClientNode, err)
@@ -722,7 +304,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				gatewayNode, err = nodesRepository.GetGatewayNode()
+				gatewayNode, err = services.NodesRepository.GetGatewayNode()
 
 				if err != nil || gatewayNode == nil {
 					logger.Error("[%s] %v: %v", r.Method, ErrFailedToGetGatewayNode, err)
@@ -732,7 +314,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				logger.Info("[%s] Client node created from join request", r.Method)
 
-				publicServices := publicServicesRepository.GetAll()
+				publicServices := services.PublicServicesRepository.GetAll()
 
 				err = gatewayNode.SaveConfigs(publicServices, false)
 
@@ -750,7 +332,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				err = nodesRepository.SaveNode(gatewayNode)
+				err = services.NodesRepository.SaveNode(gatewayNode)
 
 				if err != nil {
 					logger.Error("[%s] %v: %v", r.Method, "Failed to save gateway node", err)
@@ -773,7 +355,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 				return
 			}
 
-			err = joinRequestsRepository.Delete(decryptedJoinRequest.ID)
+			err = services.JoinRequestsRepository.Delete(decryptedJoinRequest.ID)
 
 			if err != nil {
 				logger.Error("[%s] %v: %v", r.Method, ErrFailedToDeleteJoinRequest, err)
