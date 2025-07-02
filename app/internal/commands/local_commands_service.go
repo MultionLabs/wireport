@@ -912,15 +912,19 @@ func (s *LocalCommandsService) ServerList(requestFromNodeID *string, stdOut io.W
 			return
 		}
 
-		fmt.Fprintf(stdOut, "ID\tPRIVATE IP\n")
+		fmt.Fprintf(stdOut, "SERVER PRIVATE IP\n")
+		fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-		for _, serverNode := range serverNodes {
-
-			if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
-				fmt.Fprintf(stdOut, "%s*\t%s\n", serverNode.ID, serverNode.WGConfig.Interface.Address.String())
-			} else {
-				fmt.Fprintf(stdOut, "%s\t%s\n", serverNode.ID, serverNode.WGConfig.Interface.Address.String())
+		if len(serverNodes) > 0 {
+			for _, serverNode := range serverNodes {
+				if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
+					fmt.Fprintf(stdOut, "%s*\n", serverNode.WGConfig.Interface.Address.String())
+				} else {
+					fmt.Fprintf(stdOut, "%s\n", serverNode.WGConfig.Interface.Address.String())
+				}
 			}
+		} else {
+			fmt.Fprintf(stdOut, "No servers are registered on this gateway\n")
 		}
 
 		return
@@ -1077,10 +1081,6 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 				fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
 			}
 		} else {
-			if !quietClientCreation {
-				fmt.Fprintf(stdOut, "Join request flag not detected, creating client node without generating a join request\n")
-			}
-
 			var clientNode *node_types.Node
 
 			clientNode, err = s.NodesRepository.CreateClient()
@@ -1088,10 +1088,6 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to create client: %v\n", err)
 				return
-			}
-
-			if !quietClientCreation {
-				fmt.Fprintf(stdOut, "Client node created without join request\n")
 			}
 
 			// save configs & restart services
@@ -1120,7 +1116,9 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 			wireguardConfig, _ := clientNode.GetFormattedWireguardConfig()
 
 			if !quietClientCreation {
-				fmt.Fprintf(stdOut, "New client created, use the following wireguard config on your client node to connect to the network:\n\n%s\n", *wireguardConfig)
+				fmt.Fprintf(stdOut, "# New wireport client has been successfully created!\n")
+				fmt.Fprintf(stdOut, "# Use the WireGuard config below on your client device to connect to the wireport network:\n\n")
+				fmt.Fprintf(stdOut, "%s\n", *wireguardConfig)
 			} else {
 				fmt.Fprintf(stdOut, "%s\n", *wireguardConfig)
 			}
@@ -1146,15 +1144,19 @@ func (s *LocalCommandsService) ClientList(requestFromNodeID *string, stdOut io.W
 			return
 		}
 
-		fmt.Fprintf(stdOut, "ID\tPRIVATE IP\n")
+		fmt.Fprintf(stdOut, "CLIENT PRIVATE IP\n")
+		fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-		for _, clientNode := range clientNodes {
-
-			if requestFromNodeID != nil && clientNode.ID == *requestFromNodeID {
-				fmt.Fprintf(stdOut, "%s*\t%s\n", clientNode.ID, clientNode.WGConfig.Interface.Address.String())
-			} else {
-				fmt.Fprintf(stdOut, "%s\t%s\n", clientNode.ID, clientNode.WGConfig.Interface.Address.String())
+		if len(clientNodes) > 0 {
+			for _, clientNode := range clientNodes {
+				if requestFromNodeID != nil && clientNode.ID == *requestFromNodeID {
+					fmt.Fprintf(stdOut, "%s*\n", clientNode.WGConfig.Interface.Address.String())
+				} else {
+					fmt.Fprintf(stdOut, "%s\n", clientNode.WGConfig.Interface.Address.String())
+				}
 			}
+		} else {
+			fmt.Fprintf(stdOut, "No clients are registered on this gateway\n")
 		}
 
 		return
@@ -1301,10 +1303,15 @@ func (s *LocalCommandsService) ServiceList(stdOut io.Writer, errOut io.Writer) {
 
 	services := s.PublicServicesRepository.GetAll()
 
-	fmt.Fprintf(stdOut, "PUBLIC\tLOCAL\n")
+	fmt.Fprintf(stdOut, "PUBLIC\t->\tLOCAL\n")
+	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-	for _, service := range services {
-		fmt.Fprintf(stdOut, "%s://%s:%d\t%s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort, service.LocalProtocol, service.LocalHost, service.LocalPort)
+	if len(services) > 0 {
+		for _, service := range services {
+			fmt.Fprintf(stdOut, "%s://%s:%d\t->\t%s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort, service.LocalProtocol, service.LocalHost, service.LocalPort)
+		}
+	} else {
+		fmt.Fprintf(stdOut, "No services are published on this gateway\n")
 	}
 }
 
@@ -1419,10 +1426,15 @@ func (s *LocalCommandsService) ServiceParamList(stdOut io.Writer, errOut io.Writ
 		return
 	}
 
-	fmt.Fprintf(stdOut, "Params of %s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort)
+	fmt.Fprintf(stdOut, "SERVICE PARAMS: %s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort)
+	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-	for _, param := range service.Params {
-		fmt.Fprintf(stdOut, "%s\n", param.ParamValue)
+	if len(service.Params) > 0 {
+		for _, param := range service.Params {
+			fmt.Fprintf(stdOut, "%s\n", param.ParamValue)
+		}
+	} else {
+		fmt.Fprintf(stdOut, "No params are set for this service\n")
 	}
 
 	fmt.Fprintf(stdOut, "\n")
