@@ -88,12 +88,23 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 }
 
 func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
+	nodesRepository := nodes.NewRepository(db)
+	publicServicesRepository := publicservices.NewRepository(db)
+	joinRequestsRepository := joinrequests.NewRepository(db)
+
 	services := &Services{
-		NodesRepository:          nodes.NewRepository(db),
-		PublicServicesRepository: publicservices.NewRepository(db),
-		JoinRequestsRepository:   joinrequests.NewRepository(db),
+		NodesRepository:          nodesRepository,
+		PublicServicesRepository: publicServicesRepository,
+		JoinRequestsRepository:   joinRequestsRepository,
 		CommandsService: Service{
-			LocalCommandsService: LocalCommandsService{},
+			LocalCommandsService: LocalCommandsService{
+				NodesRepository:          nodesRepository,
+				PublicServicesRepository: publicServicesRepository,
+				JoinRequestsRepository:   joinRequestsRepository,
+			},
+			NodesRepository:          nodesRepository,
+			PublicServicesRepository: publicServicesRepository,
+			JoinRequestsRepository:   joinRequestsRepository,
 		},
 	}
 

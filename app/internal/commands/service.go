@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"wireport/internal/nodes/types"
 	"wireport/internal/publicservices"
 	"wireport/internal/ssh"
+
+	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -77,44 +80,43 @@ func (s *Service) executeCommand(
 	s.printRoleError(errOut, allowedRoles)
 }
 
-// locally executable commands
-func (s *Service) createLocalHandler(localCall func()) RoleHandler {
-	return func() error {
-		localCall()
-		return nil
-	}
-}
-
-// remotely executable commands
-func (s *Service) createAPIHandler(
-	apiCall func(*APICommandsService) (commandstypes.ExecResponseDTO, error),
-	stdOut io.Writer,
-	errOut io.Writer,
-	errorPrefix string,
-) RoleHandler {
+func (s *Service) createCommandHandler(stdOut io.Writer, errOut io.Writer, call func(currentNode *types.Node, api *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error)) RoleHandler {
 	return func() error {
 		currentNode, err := s.NodesRepository.GetCurrentNode()
 
 		if err != nil {
-			return fmt.Errorf("failed to get current node: %v", err)
+			// if node is not found -- it's ok, we consider it as node role = empty
+			// otherwise, return the error
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 		}
 
-		apiService := &APICommandsService{
-			Host:             currentNode.GatewayPublicIP,
-			Port:             currentNode.GatewayPublicPort,
-			ClientCertBundle: currentNode.ClientCertBundle,
+		var apiService *APICommandsService
+
+		if currentNode != nil {
+			apiService = &APICommandsService{
+				Host:             currentNode.GatewayPublicIP,
+				Port:             currentNode.GatewayPublicPort,
+				ClientCertBundle: currentNode.ClientCertBundle,
+			}
 		}
 
-		execResponseDTO, err := apiCall(apiService)
+		execResponseDTO, err := call(currentNode, apiService, &s.LocalCommandsService)
+
 		if err != nil {
-			return fmt.Errorf("%s: %v", errorPrefix, err)
+			return err
 		}
 
-		if len(execResponseDTO.Stderr) > 0 {
-			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+		if execResponseDTO != nil {
+			if len(execResponseDTO.Stderr) > 0 {
+				fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
+			}
+
+			fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
+			return nil
 		}
 
-		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
 		return nil
 	}
 }
@@ -147,8 +149,9 @@ func (s *Service) GatewayStart(gatewayPublicIP string, stdOut io.Writer, errOut 
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayStart(gatewayPublicIP, stdOut, errOut, gatewayStartConfigureOnly, router)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.GatewayStart(gatewayPublicIP, stdOut, errOut, gatewayStartConfigureOnly, router)
+					return nil, nil
 				}),
 			},
 		},
@@ -167,8 +170,9 @@ func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayUp(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.GatewayUp(creds, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 		},
@@ -183,8 +187,9 @@ func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut i
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleClient},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayDown(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.GatewayDown(creds, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 		},
@@ -199,8 +204,9 @@ func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOu
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayUpgrade(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.GatewayUpgrade(creds, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 		},
@@ -217,20 +223,17 @@ func (s *Service) ServerNew(stdOut io.Writer, errOut io.Writer, forceServerCreat
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet)
-					},
-					stdOut,
-					errOut,
-					"Failed to create server on the gateway",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -244,19 +247,16 @@ func (s *Service) ServerRemove(stdOut io.Writer, errOut io.Writer, serverNodeID 
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServerRemove(serverNodeID)
-					},
-					stdOut,
-					errOut,
-					"Failed to remove server",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServerRemove(serverNodeID)
+					return &execResponseDTO, err
+				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerRemove(stdOut, errOut, serverNodeID)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerRemove(stdOut, errOut, serverNodeID)
+					return nil, nil
 				}),
 			},
 		},
@@ -271,8 +271,9 @@ func (s *Service) ServerStart(stdOut io.Writer, errOut io.Writer) {
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerStart(stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerStart(stdOut, errOut)
+					return nil, nil
 				}),
 			},
 		},
@@ -291,8 +292,9 @@ func (s *Service) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.W
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerUp(creds, stdOut, errOut, dockerSubnet, s)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerUp(creds, stdOut, errOut, dockerSubnet, s)
+					return nil, nil
 				}),
 			},
 		},
@@ -307,31 +309,25 @@ func (s *Service) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerDown(creds, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						// 1. Tear down server node
-						s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(currentNode *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					if currentNode == nil {
+						return nil, fmt.Errorf("current node is required to tear down server node")
+					}
 
-						currentNode, err := s.NodesRepository.GetCurrentNode()
+					// 1. Tear down server node
+					s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
 
-						if err != nil {
-							return commandstypes.ExecResponseDTO{}, fmt.Errorf("failed to get current node: %v", err)
-						}
-
-						// 2. Remove server node from the gateway
-
-						return api.ServerRemove(currentNode.ID)
-					},
-					stdOut,
-					errOut,
-					"Failed to tear down server node",
-				),
+					// 2. Remove server node from the gateway
+					execResponseDTO, err := api.ServerRemove(currentNode.ID)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -345,20 +341,17 @@ func (s *Service) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerList(requestFromNodeID, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerList(requestFromNodeID, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServerList()
-					},
-					stdOut,
-					errOut,
-					"Failed to list servers",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServerList()
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -372,8 +365,9 @@ func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerUpgrade(creds, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerUpgrade(creds, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 		},
@@ -390,20 +384,17 @@ func (s *Service) ClientNew(stdOut io.Writer, errOut io.Writer, joinRequestClien
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ClientNew(stdOut, errOut, joinRequestClientCreation, quietClientCreation, waitClientCreation)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ClientNew(stdOut, errOut, joinRequestClientCreation, quietClientCreation, waitClientCreation)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ClientNew(joinRequestClientCreation, quietClientCreation, waitClientCreation)
-					},
-					stdOut,
-					errOut,
-					"Failed to create client on the gateway",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ClientNew(joinRequestClientCreation, quietClientCreation, waitClientCreation)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -417,20 +408,17 @@ func (s *Service) ClientList(requestFromNodeID *string, stdOut io.Writer, errOut
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ClientList(requestFromNodeID, stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ClientList(requestFromNodeID, stdOut, errOut)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ClientList()
-					},
-					stdOut,
-					errOut,
-					"Failed to list clients",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ClientList()
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -447,20 +435,17 @@ func (s *Service) ServicePublish(stdOut io.Writer, errOut io.Writer,
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServicePublish(stdOut, errOut, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServicePublish(stdOut, errOut, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServicePublish(localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
-					},
-					stdOut,
-					errOut,
-					"Failed to publish service",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServicePublish(localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -474,20 +459,17 @@ func (s *Service) ServiceUnpublish(stdOut io.Writer, errOut io.Writer, publicPro
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceUnpublish(stdOut, errOut, publicProtocol, publicHost, publicPort)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServiceUnpublish(stdOut, errOut, publicProtocol, publicHost, publicPort)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServiceUnpublish(publicProtocol, publicHost, publicPort)
-					},
-					stdOut,
-					errOut,
-					"Failed to unpublish service",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServiceUnpublish(publicProtocol, publicHost, publicPort)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -501,20 +483,17 @@ func (s *Service) ServiceList(stdOut io.Writer, errOut io.Writer) {
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceList(stdOut, errOut)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServiceList(stdOut, errOut)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServiceList()
-					},
-					stdOut,
-					errOut,
-					"Failed to list services",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServiceList()
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -530,20 +509,17 @@ func (s *Service) ServiceParamNew(stdOut io.Writer, errOut io.Writer, publicProt
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamNew(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServiceParamNew(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServiceParamNew(publicProtocol, publicHost, publicPort, paramType, paramValue)
-					},
-					stdOut,
-					errOut,
-					"Failed to add service param",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServiceParamNew(publicProtocol, publicHost, publicPort, paramType, paramValue)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -557,20 +533,17 @@ func (s *Service) ServiceParamRemove(stdOut io.Writer, errOut io.Writer, publicP
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamRemove(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServiceParamRemove(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServiceParamRemove(publicProtocol, publicHost, publicPort, paramType, paramValue)
-					},
-					stdOut,
-					errOut,
-					"Failed to remove service param",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServiceParamRemove(publicProtocol, publicHost, publicPort, paramType, paramValue)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -584,20 +557,17 @@ func (s *Service) ServiceParamList(stdOut io.Writer, errOut io.Writer, publicPro
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamList(stdOut, errOut, publicProtocol, publicHost, publicPort)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServiceParamList(stdOut, errOut, publicProtocol, publicHost, publicPort)
+					return nil, nil
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
-				Handler: s.createAPIHandler(
-					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
-						return api.ServiceParamList(publicProtocol, publicHost, publicPort)
-					},
-					stdOut,
-					errOut,
-					"Failed to list service params",
-				),
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					execResponseDTO, err := api.ServiceParamList(publicProtocol, publicHost, publicPort)
+					return &execResponseDTO, err
+				}),
 			},
 		},
 	)
@@ -613,8 +583,9 @@ func (s *Service) Join(stdOut io.Writer, errOut io.Writer, joinToken string) {
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
-				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.Join(stdOut, errOut, joinToken)
+				Handler: s.createCommandHandler(stdOut, errOut, func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.Join(stdOut, errOut, joinToken)
+					return nil, nil
 				}),
 			},
 		},
