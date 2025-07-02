@@ -22,7 +22,7 @@ var NewServerCmd = &cobra.Command{
 	Short: "Create a new join-request for connecting a server to wireport network",
 	Long:  `Create a new join-request for connecting a server to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ServerNew(nodesRepository, joinRequestsRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), forceServerCreation, quietServerCreation, dockerSubnet)
+		commandsService.ServerNew(cmd.OutOrStdout(), cmd.ErrOrStderr(), forceServerCreation, quietServerCreation, dockerSubnet)
 	},
 }
 
@@ -31,7 +31,7 @@ var StartServerCmd = &cobra.Command{
 	Short: "Start the wireport server",
 	Long:  `Start the wireport server. This command is only relevant for server nodes after they joined the network.`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ServerStart(nodesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServerStart(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -76,7 +76,7 @@ var UpServerCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.ServerUp(nodesRepository, joinRequestsRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
+		commandsService.ServerUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
 	},
 }
 
@@ -98,7 +98,7 @@ var DownServerCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.ServerDown(nodesRepository, creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServerDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -107,7 +107,7 @@ var ListServerCmd = &cobra.Command{
 	Short: "List all servers",
 	Long:  `List all servers that are connected to the wireport network`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ServerList(nodesRepository, nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServerList(nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -123,7 +123,7 @@ var UpgradeServerCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServerUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.ServerUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 

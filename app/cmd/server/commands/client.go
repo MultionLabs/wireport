@@ -19,7 +19,7 @@ var NewClientCmd = &cobra.Command{
 	Short: "Create a new join-request for connecting a client to wireport network",
 	Long:  `Create a new join-request for connecting a client to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ClientNew(nodesRepository, joinRequestsRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), joinRequestClientCreation, quietClientCreation, waitClientCreation)
+		commandsService.ClientNew(cmd.OutOrStdout(), cmd.ErrOrStderr(), joinRequestClientCreation, quietClientCreation, waitClientCreation)
 	},
 }
 
@@ -28,7 +28,7 @@ var ListClientCmd = &cobra.Command{
 	Short: "List all clients",
 	Long:  `List all clients that are connected to the wireport network`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ClientList(nodesRepository, nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ClientList(nil, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 

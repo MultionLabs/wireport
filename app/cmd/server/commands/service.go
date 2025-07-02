@@ -84,7 +84,7 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServicePublish(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServicePublish(cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -100,7 +100,7 @@ var UnpublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceUnpublish(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServiceUnpublish(cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -109,7 +109,7 @@ var ListServiceCmd = &cobra.Command{
 	Short: "List all published services",
 	Long:  `List all published services (public and local addresses)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		commandsService.ServiceList(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServiceList(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -125,7 +125,7 @@ var NewParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamNew(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
+		commandsService.ServiceParamNew(cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -141,7 +141,7 @@ var RemoveParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamRemove(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
+		commandsService.ServiceParamRemove(cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort, publicservices.PublicServiceParamTypeCaddyFreeText, paramValue)
 	},
 }
 
@@ -157,7 +157,7 @@ var ListParamsServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServiceParamList(nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
+		commandsService.ServiceParamList(cmd.OutOrStdout(), cmd.ErrOrStderr(), *publicProtocol, *publicHost, *publicPort)
 	},
 }
 

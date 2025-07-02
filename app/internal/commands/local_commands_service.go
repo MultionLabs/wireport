@@ -25,13 +25,16 @@ import (
 	"github.com/google/uuid"
 )
 
-type LocalCommandsService struct{}
+type LocalCommandsService struct {
+	NodesRepository          *nodes.Repository
+	PublicServicesRepository *publicservices.Repository
+	JoinRequestsRepository   *joinrequests.Repository
+}
 
 // gateway
 
-func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository,
-	stdOut io.Writer, errOut io.Writer, gatewayStartConfigureOnly bool, router http.Handler) {
-	gatewayNode, err := nodesRepository.EnsureGatewayNode(types.IPMarshable{
+func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, stdOut io.Writer, errOut io.Writer, gatewayStartConfigureOnly bool, router http.Handler) {
+	gatewayNode, err := s.NodesRepository.EnsureGatewayNode(types.IPMarshable{
 		IP: net.ParseIP(gatewayPublicIP),
 	}, config.Config.WGPublicPort, gatewayPublicIP, config.Config.ControlServerPort)
 
@@ -72,7 +75,7 @@ func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, nodesReposit
 		}()
 	}
 
-	publicServices := publicServicesRepository.GetAll()
+	publicServices := s.PublicServicesRepository.GetAll()
 
 	err = gatewayNode.SaveConfigs(publicServices, true)
 
@@ -212,7 +215,7 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
 }
 
-func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
+func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🚀 wireport Gateway Up\n")
@@ -283,17 +286,17 @@ func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, nodesRepository
 	}
 
 	if clientJoinToken != nil {
-		fmt.Fprintf(stdOut, "   🔑 Applying Client Join Token: %s...\n", (*clientJoinToken)[:100])
+		fmt.Fprintf(stdOut, "   🔑 Applying Client Join Token: %s...\n", (*clientJoinToken)[:20])
 
-		s.Join(nodesRepository, stdOut, errOut, *clientJoinToken)
+		s.Join(stdOut, errOut, *clientJoinToken)
 	}
 
 	fmt.Fprintf(stdOut, "✨ Bootstrap process completed!\n")
 }
 
-func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	// First, try to determine if we are executing on a gateway node or locally
-	currentNode, err := nodesRepository.GetCurrentNode()
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err == nil && currentNode != nil && currentNode.Role == node_types.NodeRoleGateway {
 		// Local execution – just detach and remove docker network like in ServerDown
@@ -367,8 +370,8 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 	fmt.Fprintf(stdOut, "✨ Gateway teardown process completed!\n")
 }
 
-func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -410,8 +413,8 @@ func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.
 
 // server
 
-func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCreation bool, dockerSubnet string, nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCreation bool, dockerSubnet string, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -421,28 +424,28 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 	switch currentNode.Role {
 	case types.NodeRoleGateway:
 		// local execution
-		totalDockerSubnets, availableDockerSubnets, err := nodesRepository.TotalAndAvailableDockerSubnets()
+		totalDockerSubnets, availableDockerSubnets, err := s.NodesRepository.TotalAndAvailableDockerSubnets()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to count available Docker subnets: %v\n", err)
 			return
 		}
 
-		totalServerRoleJoinRequests := joinRequestsRepository.CountServerJoinRequests()
+		totalServerRoleJoinRequests := s.JoinRequestsRepository.CountServerJoinRequests()
 
 		if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
 			fmt.Fprintf(errOut, "No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
 			return
 		}
 
-		totalWireguardClients, availableWireguardClients, err := nodesRepository.TotalAvailableWireguardClients()
+		totalWireguardClients, availableWireguardClients, err := s.NodesRepository.TotalAvailableWireguardClients()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to count available Wireguard clients: %v\n", err)
 			return
 		}
 
-		totalJoinRequests := joinRequestsRepository.CountAll()
+		totalJoinRequests := s.JoinRequestsRepository.CountAll()
 
 		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
 			fmt.Fprintf(errOut, "No Wireguard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
@@ -461,7 +464,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 				return
 			}
 
-			if !nodesRepository.IsDockerSubnetAvailable(parsedDockerSubnet) {
+			if !s.NodesRepository.IsDockerSubnetAvailable(parsedDockerSubnet) {
 				fmt.Fprintf(errOut, "Docker subnet %s is already in use\n", dockerSubnet)
 				return
 			}
@@ -478,7 +481,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 				fmt.Fprintf(stdOut, "Force flag detected, creating server node without generating a join request\n")
 			}
 
-			_, err = nodesRepository.CreateServer(dockerSubnetPtr)
+			_, err = s.NodesRepository.CreateServer(dockerSubnetPtr)
 
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to create server node: %v\n", err)
@@ -492,7 +495,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 			return
 		}
 
-		gatewayNode, err := nodesRepository.GetGatewayNode()
+		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to get gateway node: %v\n", err)
@@ -511,7 +514,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 			return
 		}
 
-		err = nodesRepository.SaveNode(gatewayNode)
+		err = s.NodesRepository.SaveNode(gatewayNode)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to save gateway node: %v\n", err)
@@ -525,7 +528,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 			return
 		}
 
-		joinRequest, err := joinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
+		joinRequest, err := s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
 			UDPAddr: net.UDPAddr{
 				IP:   net.ParseIP(*gatewayNode.WGPublicIP),
 				Port: int(config.Config.ControlServerPort),
@@ -552,8 +555,8 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 	}
 }
 
-func (s *LocalCommandsService) ServerRemove(nodesRepository *nodes.Repository, _ io.Writer, errOut io.Writer, serverNodeID string) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerRemove(_ io.Writer, errOut io.Writer, serverNodeID string) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -570,7 +573,7 @@ func (s *LocalCommandsService) ServerRemove(nodesRepository *nodes.Repository, _
 		return
 	}
 
-	err = nodesRepository.DeleteServer(serverNodeID)
+	err = s.NodesRepository.DeleteServer(serverNodeID)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get server node: %v\n", err)
@@ -578,10 +581,10 @@ func (s *LocalCommandsService) ServerRemove(nodesRepository *nodes.Repository, _
 	}
 }
 
-func (s *LocalCommandsService) ServerStart(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
+func (s *LocalCommandsService) ServerStart(stdOut io.Writer, errOut io.Writer) {
 	fmt.Fprintf(stdOut, "Starting wireport server\n")
 
-	currentNode, err := nodesRepository.GetCurrentNode()
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -739,7 +742,7 @@ func (s *LocalCommandsService) ServerStatus(creds *ssh.Credentials, stdOut io.Wr
 	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
 }
 
-func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
+func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🚀 wireport Server Connect\n")
@@ -763,7 +766,7 @@ func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinR
 	stdOutWriter := bytes.NewBufferString("")
 	errOutWriter := bytes.NewBufferString("")
 
-	commandsService.ServerNew(nodesRepository, joinRequestsRepository, stdOutWriter, errOutWriter, false, true, dockerSubnet)
+	commandsService.ServerNew(stdOutWriter, errOutWriter, false, true, dockerSubnet)
 
 	if len(errOutWriter.String()) > 0 || len(stdOutWriter.String()) == 0 {
 		fmt.Fprintf(errOut, "%s\n", errOutWriter.String())
@@ -808,8 +811,8 @@ func (s *LocalCommandsService) ServerUp(nodesRepository *nodes.Repository, joinR
 	fmt.Fprintf(stdOut, "✨ Server connection process completed!\n")
 }
 
-func (s *LocalCommandsService) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -890,8 +893,8 @@ func (s *LocalCommandsService) ServerDown(nodesRepository *nodes.Repository, cre
 	fmt.Fprintf(stdOut, "✨ Server teardown process completed!\n")
 }
 
-func (s *LocalCommandsService) ServerList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -901,7 +904,7 @@ func (s *LocalCommandsService) ServerList(nodesRepository *nodes.Repository, req
 	switch currentNode.Role {
 	case node_types.NodeRoleGateway:
 		// local execution
-		serverNodes, err := nodesRepository.GetNodesByRole(node_types.NodeRoleServer)
+		serverNodes, err := s.NodesRepository.GetNodesByRole(node_types.NodeRoleServer)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
@@ -926,8 +929,8 @@ func (s *LocalCommandsService) ServerList(nodesRepository *nodes.Repository, req
 	}
 }
 
-func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
@@ -969,8 +972,8 @@ func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.W
 
 // client
 
-func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, joinRequestClientCreation bool, quietClientCreation bool, waitClientCreation bool) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joinRequestClientCreation bool, quietClientCreation bool, waitClientCreation bool) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil || currentNode == nil {
 		if !waitClientCreation {
@@ -982,7 +985,7 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 		for range 10 {
 			time.Sleep(1 * time.Second)
 
-			currentNode, err = nodesRepository.GetCurrentNode()
+			currentNode, err = s.NodesRepository.GetCurrentNode()
 
 			if err == nil && currentNode != nil {
 				if !quietClientCreation {
@@ -1001,14 +1004,14 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 
 	switch currentNode.Role {
 	case types.NodeRoleGateway:
-		totalWireguardClients, availableWireguardClients, err := nodesRepository.TotalAvailableWireguardClients()
+		totalWireguardClients, availableWireguardClients, err := s.NodesRepository.TotalAvailableWireguardClients()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to count available wireguard clients: %v\n", err)
 			return
 		}
 
-		totalJoinRequests := joinRequestsRepository.CountAll()
+		totalJoinRequests := s.JoinRequestsRepository.CountAll()
 
 		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
 			fmt.Fprintf(errOut, "No available wireguard client slots. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some wireguard client slots.\n", totalWireguardClients, totalJoinRequests)
@@ -1029,7 +1032,7 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 				return
 			}
 
-			err = nodesRepository.SaveNode(currentNode)
+			err = s.NodesRepository.SaveNode(currentNode)
 
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to save gateway node: %v\n", err)
@@ -1046,7 +1049,7 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 
 			var joinRequest *joinrequeststypes.JoinRequest
 
-			joinRequest, err = joinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
+			joinRequest, err = s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
 				UDPAddr: net.UDPAddr{
 					IP:   net.ParseIP(*currentNode.WGPublicIP),
 					Port: int(config.Config.ControlServerPort),
@@ -1079,7 +1082,7 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 
 			var clientNode *node_types.Node
 
-			clientNode, err = nodesRepository.CreateClient()
+			clientNode, err = s.NodesRepository.CreateClient()
 
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to create client: %v\n", err)
@@ -1091,9 +1094,9 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 			}
 
 			// save configs & restart services
-			publicServices := publicServicesRepository.GetAll()
+			publicServices := s.PublicServicesRepository.GetAll()
 
-			currentNode, err = nodesRepository.GetCurrentNode()
+			currentNode, err = s.NodesRepository.GetCurrentNode()
 
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to get a fresh current node instance after creating client: %v\n", err)
@@ -1124,8 +1127,8 @@ func (s *LocalCommandsService) ClientNew(nodesRepository *nodes.Repository, join
 	}
 }
 
-func (s *LocalCommandsService) ClientList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ClientList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1135,7 +1138,7 @@ func (s *LocalCommandsService) ClientList(nodesRepository *nodes.Repository, req
 	switch currentNode.Role {
 	case node_types.NodeRoleGateway:
 		// local execution
-		clientNodes, err := nodesRepository.GetNodesByRole(node_types.NodeRoleClient)
+		clientNodes, err := s.NodesRepository.GetNodesByRole(node_types.NodeRoleClient)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
@@ -1162,8 +1165,8 @@ func (s *LocalCommandsService) ClientList(nodesRepository *nodes.Repository, req
 
 // service
 
-func (s *LocalCommandsService) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer, localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1176,7 +1179,7 @@ func (s *LocalCommandsService) ServicePublish(nodesRepository *nodes.Repository,
 		return
 	}
 
-	err = publicServicesRepository.Save(&publicservices.PublicService{
+	err = s.PublicServicesRepository.Save(&publicservices.PublicService{
 		LocalProtocol:  localProtocol,
 		LocalHost:      localHost,
 		LocalPort:      localPort,
@@ -1190,14 +1193,14 @@ func (s *LocalCommandsService) ServicePublish(nodesRepository *nodes.Repository,
 		return
 	}
 
-	gatewayNode, err := nodesRepository.GetGatewayNode()
+	gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting gateway node: %v\n", err)
 		return
 	}
 
-	err = gatewayNode.SaveConfigs(publicServicesRepository.GetAll(), false)
+	err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1214,8 +1217,8 @@ func (s *LocalCommandsService) ServicePublish(nodesRepository *nodes.Repository,
 	fmt.Fprintf(stdOut, "Service %s://%s:%d is now published on\n\n\t\t%s://%s:%d\n\n", localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 }
 
-func (s *LocalCommandsService) ServiceUnpublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServiceUnpublish(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1251,17 +1254,17 @@ func (s *LocalCommandsService) ServiceUnpublish(nodesRepository *nodes.Repositor
 		return
 	}
 
-	unpublished := publicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
+	unpublished := s.PublicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
 
 	if unpublished {
-		gatewayNode, err := nodesRepository.GetGatewayNode()
+		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting gateway node: %v\n", err)
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(publicServicesRepository.GetAll(), false)
+		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1281,8 +1284,8 @@ func (s *LocalCommandsService) ServiceUnpublish(nodesRepository *nodes.Repositor
 	}
 }
 
-func (s *LocalCommandsService) ServiceList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServiceList(stdOut io.Writer, errOut io.Writer) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1295,7 +1298,7 @@ func (s *LocalCommandsService) ServiceList(nodesRepository *nodes.Repository, pu
 		return
 	}
 
-	services := publicServicesRepository.GetAll()
+	services := s.PublicServicesRepository.GetAll()
 
 	fmt.Fprintf(stdOut, "PUBLIC\tLOCAL\n")
 
@@ -1306,8 +1309,8 @@ func (s *LocalCommandsService) ServiceList(nodesRepository *nodes.Repository, pu
 
 // service params
 
-func (s *LocalCommandsService) ServiceParamNew(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServiceParamNew(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1320,17 +1323,17 @@ func (s *LocalCommandsService) ServiceParamNew(nodesRepository *nodes.Repository
 		return
 	}
 
-	updated := publicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
+	updated := s.PublicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if updated {
-		gatewayNode, err := nodesRepository.GetGatewayNode()
+		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting gateway node: %v\n", err)
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(publicServicesRepository.GetAll(), false)
+		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1350,8 +1353,8 @@ func (s *LocalCommandsService) ServiceParamNew(nodesRepository *nodes.Repository
 	}
 }
 
-func (s *LocalCommandsService) ServiceParamRemove(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServiceParamRemove(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1364,17 +1367,17 @@ func (s *LocalCommandsService) ServiceParamRemove(nodesRepository *nodes.Reposit
 		return
 	}
 
-	removed := publicServicesRepository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
+	removed := s.PublicServicesRepository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if removed {
-		gatewayNode, err := nodesRepository.GetGatewayNode()
+		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error getting gateway node: %v\n", err)
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(publicServicesRepository.GetAll(), false)
+		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1394,8 +1397,8 @@ func (s *LocalCommandsService) ServiceParamRemove(nodesRepository *nodes.Reposit
 	}
 }
 
-func (s *LocalCommandsService) ServiceParamList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServiceParamList(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
@@ -1408,7 +1411,7 @@ func (s *LocalCommandsService) ServiceParamList(nodesRepository *nodes.Repositor
 		return
 	}
 
-	service, err := publicServicesRepository.Get(publicProtocol, publicHost, publicPort)
+	service, err := s.PublicServicesRepository.Get(publicProtocol, publicHost, publicPort)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error getting service: %v\n", err)
@@ -1426,7 +1429,7 @@ func (s *LocalCommandsService) ServiceParamList(nodesRepository *nodes.Repositor
 
 // join
 
-func (s *LocalCommandsService) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
+func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToken string) {
 	joinRequest := &joinrequeststypes.JoinRequest{}
 
 	err := joinRequest.FromBase64(joinToken)
@@ -1454,7 +1457,7 @@ func (s *LocalCommandsService) Join(nodesRepository *nodes.Repository, stdOut io
 
 	currentNode.IsCurrentNode = true
 
-	err = nodesRepository.SaveNode(currentNode)
+	err = s.NodesRepository.SaveNode(currentNode)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to save node config: %v\n", err)

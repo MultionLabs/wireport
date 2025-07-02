@@ -15,7 +15,10 @@ import (
 )
 
 type Service struct {
-	LocalCommandsService LocalCommandsService
+	LocalCommandsService     LocalCommandsService
+	NodesRepository          *nodes.Repository
+	PublicServicesRepository *publicservices.Repository
+	JoinRequestsRepository   *joinrequests.Repository
 }
 
 // RoleHandler defines a function that can be executed for a specific role
@@ -29,13 +32,12 @@ type RoleGroup struct {
 
 // handles the common pattern of command execution with role validation
 func (s *Service) executeCommand(
-	nodesRepository *nodes.Repository,
 	errorPrefix string,
 	_ io.Writer,
 	errOut io.Writer,
 	roleGroups []RoleGroup,
 ) {
-	currentNode, err := nodesRepository.GetCurrentNode()
+	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	// Build the complete list of allowed roles from role groups
 	var allowedRoles []types.NodeRole
@@ -85,14 +87,13 @@ func (s *Service) createLocalHandler(localCall func()) RoleHandler {
 
 // remotely executable commands
 func (s *Service) createAPIHandler(
-	nodesRepository *nodes.Repository,
 	apiCall func(*APICommandsService) (commandstypes.ExecResponseDTO, error),
 	stdOut io.Writer,
 	errOut io.Writer,
 	errorPrefix string,
 ) RoleHandler {
 	return func() error {
-		currentNode, err := nodesRepository.GetCurrentNode()
+		currentNode, err := s.NodesRepository.GetCurrentNode()
 
 		if err != nil {
 			return fmt.Errorf("failed to get current node: %v", err)
@@ -138,10 +139,8 @@ func (s *Service) printRoleError(errOut io.Writer, allowedRoles []types.NodeRole
 
 // gateway commands
 
-func (s *Service) GatewayStart(gatewayPublicIP string, nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository,
-	stdOut io.Writer, errOut io.Writer, gatewayStartConfigureOnly bool, router http.Handler) {
+func (s *Service) GatewayStart(gatewayPublicIP string, stdOut io.Writer, errOut io.Writer, gatewayStartConfigureOnly bool, router http.Handler) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to start gateway",
 		stdOut,
 		errOut,
@@ -149,7 +148,7 @@ func (s *Service) GatewayStart(gatewayPublicIP string, nodesRepository *nodes.Re
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayStart(gatewayPublicIP, nodesRepository, publicServicesRepository, stdOut, errOut, gatewayStartConfigureOnly, router)
+					s.LocalCommandsService.GatewayStart(gatewayPublicIP, stdOut, errOut, gatewayStartConfigureOnly, router)
 				}),
 			},
 		},
@@ -160,9 +159,8 @@ func (s *Service) GatewayStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.GatewayStatus(creds, stdOut)
 }
 
-func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to bootstrap gateway node",
 		stdOut,
 		errOut,
@@ -170,16 +168,15 @@ func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayUp(creds, nodesRepository, stdOut, errOut)
+					s.LocalCommandsService.GatewayUp(creds, stdOut, errOut)
 				}),
 			},
 		},
 	)
 }
 
-func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to tear down gateway node",
 		stdOut,
 		errOut,
@@ -187,16 +184,15 @@ func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut i
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayDown(creds, stdOut, errOut, nodesRepository)
+					s.LocalCommandsService.GatewayDown(creds, stdOut, errOut)
 				}),
 			},
 		},
 	)
 }
 
-func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to upgrade gateway node",
 		stdOut,
 		errOut,
@@ -204,7 +200,7 @@ func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOu
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.GatewayUpgrade(creds, stdOut, errOut, nodesRepository)
+					s.LocalCommandsService.GatewayUpgrade(creds, stdOut, errOut)
 				}),
 			},
 		},
@@ -213,9 +209,8 @@ func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOu
 
 // server commands
 
-func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, stdOut io.Writer, errOut io.Writer, forceServerCreation bool, quietServerCreation bool, dockerSubnet string) {
+func (s *Service) ServerNew(stdOut io.Writer, errOut io.Writer, forceServerCreation bool, quietServerCreation bool, dockerSubnet string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to create server on the gateway",
 		stdOut,
 		errOut,
@@ -223,13 +218,12 @@ func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepos
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet, nodesRepository, joinRequestsRepository, stdOut, errOut)
+					s.LocalCommandsService.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet, stdOut, errOut)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServerNew(forceServerCreation, quietServerCreation, dockerSubnet)
 					},
@@ -242,9 +236,8 @@ func (s *Service) ServerNew(nodesRepository *nodes.Repository, joinRequestsRepos
 	)
 }
 
-func (s *Service) ServerRemove(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, serverNodeID string) {
+func (s *Service) ServerRemove(stdOut io.Writer, errOut io.Writer, serverNodeID string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to remove server",
 		stdOut,
 		errOut,
@@ -252,7 +245,6 @@ func (s *Service) ServerRemove(nodesRepository *nodes.Repository, stdOut io.Writ
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServerRemove(serverNodeID)
 					},
@@ -264,16 +256,15 @@ func (s *Service) ServerRemove(nodesRepository *nodes.Repository, stdOut io.Writ
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerRemove(nodesRepository, stdOut, errOut, serverNodeID)
+					s.LocalCommandsService.ServerRemove(stdOut, errOut, serverNodeID)
 				}),
 			},
 		},
 	)
 }
 
-func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerStart(stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to start server",
 		stdOut,
 		errOut,
@@ -281,7 +272,7 @@ func (s *Service) ServerStart(nodesRepository *nodes.Repository, stdOut io.Write
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerStart(nodesRepository, stdOut, errOut)
+					s.LocalCommandsService.ServerStart(stdOut, errOut)
 				}),
 			},
 		},
@@ -292,9 +283,8 @@ func (s *Service) ServerStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.ServerStatus(creds, stdOut)
 }
 
-func (s *Service) ServerUp(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
+func (s *Service) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to bootstrap server node",
 		stdOut,
 		errOut,
@@ -302,16 +292,15 @@ func (s *Service) ServerUp(nodesRepository *nodes.Repository, joinRequestsReposi
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerUp(nodesRepository, joinRequestsRepository, creds, stdOut, errOut, dockerSubnet, s)
+					s.LocalCommandsService.ServerUp(creds, stdOut, errOut, dockerSubnet, s)
 				}),
 			},
 		},
 	)
 }
 
-func (s *Service) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to tear down server node",
 		stdOut,
 		errOut,
@@ -319,18 +308,17 @@ func (s *Service) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Crede
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerDown(nodesRepository, creds, stdOut, errOut)
+					s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						// 1. Tear down server node
-						s.LocalCommandsService.ServerDown(nodesRepository, creds, stdOut, errOut)
+						s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
 
-						currentNode, err := nodesRepository.GetCurrentNode()
+						currentNode, err := s.NodesRepository.GetCurrentNode()
 
 						if err != nil {
 							return commandstypes.ExecResponseDTO{}, fmt.Errorf("failed to get current node: %v", err)
@@ -349,9 +337,8 @@ func (s *Service) ServerDown(nodesRepository *nodes.Repository, creds *ssh.Crede
 	)
 }
 
-func (s *Service) ServerList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to list servers",
 		stdOut,
 		errOut,
@@ -359,13 +346,12 @@ func (s *Service) ServerList(nodesRepository *nodes.Repository, requestFromNodeI
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerList(nodesRepository, requestFromNodeID, stdOut, errOut)
+					s.LocalCommandsService.ServerList(requestFromNodeID, stdOut, errOut)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServerList()
 					},
@@ -378,9 +364,8 @@ func (s *Service) ServerList(nodesRepository *nodes.Repository, requestFromNodeI
 	)
 }
 
-func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, nodesRepository *nodes.Repository) {
+func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to upgrade server",
 		stdOut,
 		errOut,
@@ -388,7 +373,7 @@ func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServerUpgrade(creds, stdOut, errOut, nodesRepository)
+					s.LocalCommandsService.ServerUpgrade(creds, stdOut, errOut)
 				}),
 			},
 		},
@@ -397,10 +382,8 @@ func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut
 
 // client commands
 
-func (s *Service) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepository *joinrequests.Repository, publicServicesRepository *publicservices.Repository,
-	stdOut io.Writer, errOut io.Writer, joinRequestClientCreation bool, quietClientCreation bool, waitClientCreation bool) {
+func (s *Service) ClientNew(stdOut io.Writer, errOut io.Writer, joinRequestClientCreation bool, quietClientCreation bool, waitClientCreation bool) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to create client on the gateway",
 		stdOut,
 		errOut,
@@ -408,13 +391,12 @@ func (s *Service) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepos
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ClientNew(nodesRepository, joinRequestsRepository, publicServicesRepository, stdOut, errOut, joinRequestClientCreation, quietClientCreation, waitClientCreation)
+					s.LocalCommandsService.ClientNew(stdOut, errOut, joinRequestClientCreation, quietClientCreation, waitClientCreation)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ClientNew(joinRequestClientCreation, quietClientCreation, waitClientCreation)
 					},
@@ -427,9 +409,8 @@ func (s *Service) ClientNew(nodesRepository *nodes.Repository, joinRequestsRepos
 	)
 }
 
-func (s *Service) ClientList(nodesRepository *nodes.Repository, requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ClientList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to list clients",
 		stdOut,
 		errOut,
@@ -437,13 +418,12 @@ func (s *Service) ClientList(nodesRepository *nodes.Repository, requestFromNodeI
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ClientList(nodesRepository, requestFromNodeID, stdOut, errOut)
+					s.LocalCommandsService.ClientList(requestFromNodeID, stdOut, errOut)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ClientList()
 					},
@@ -458,10 +438,9 @@ func (s *Service) ClientList(nodesRepository *nodes.Repository, requestFromNodeI
 
 // service commands
 
-func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer,
+func (s *Service) ServicePublish(stdOut io.Writer, errOut io.Writer,
 	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to publish service",
 		stdOut,
 		errOut,
@@ -469,13 +448,12 @@ func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServic
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServicePublish(nodesRepository, publicServicesRepository, stdOut, errOut, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+					s.LocalCommandsService.ServicePublish(stdOut, errOut, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServicePublish(localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 					},
@@ -488,9 +466,8 @@ func (s *Service) ServicePublish(nodesRepository *nodes.Repository, publicServic
 	)
 }
 
-func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+func (s *Service) ServiceUnpublish(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to unpublish service",
 		stdOut,
 		errOut,
@@ -498,13 +475,12 @@ func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServ
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceUnpublish(nodesRepository, publicServicesRepository, stdOut, errOut, publicProtocol, publicHost, publicPort)
+					s.LocalCommandsService.ServiceUnpublish(stdOut, errOut, publicProtocol, publicHost, publicPort)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServiceUnpublish(publicProtocol, publicHost, publicPort)
 					},
@@ -517,9 +493,8 @@ func (s *Service) ServiceUnpublish(nodesRepository *nodes.Repository, publicServ
 	)
 }
 
-func (s *Service) ServiceList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServiceList(stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to list services",
 		stdOut,
 		errOut,
@@ -527,13 +502,12 @@ func (s *Service) ServiceList(nodesRepository *nodes.Repository, publicServicesR
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceList(nodesRepository, publicServicesRepository, stdOut, errOut)
+					s.LocalCommandsService.ServiceList(stdOut, errOut)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServiceList()
 					},
@@ -548,9 +522,8 @@ func (s *Service) ServiceList(nodesRepository *nodes.Repository, publicServicesR
 
 // service params commands
 
-func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+func (s *Service) ServiceParamNew(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to add service param",
 		stdOut,
 		errOut,
@@ -558,13 +531,12 @@ func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServi
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamNew(nodesRepository, publicServicesRepository, stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+					s.LocalCommandsService.ServiceParamNew(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServiceParamNew(publicProtocol, publicHost, publicPort, paramType, paramValue)
 					},
@@ -577,9 +549,8 @@ func (s *Service) ServiceParamNew(nodesRepository *nodes.Repository, publicServi
 	)
 }
 
-func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
+func (s *Service) ServiceParamRemove(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to remove service param",
 		stdOut,
 		errOut,
@@ -587,13 +558,12 @@ func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicSe
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamRemove(nodesRepository, publicServicesRepository, stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
+					s.LocalCommandsService.ServiceParamRemove(stdOut, errOut, publicProtocol, publicHost, publicPort, paramType, paramValue)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServiceParamRemove(publicProtocol, publicHost, publicPort, paramType, paramValue)
 					},
@@ -606,9 +576,8 @@ func (s *Service) ServiceParamRemove(nodesRepository *nodes.Repository, publicSe
 	)
 }
 
-func (s *Service) ServiceParamList(nodesRepository *nodes.Repository, publicServicesRepository *publicservices.Repository, stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
+func (s *Service) ServiceParamList(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to list service params",
 		stdOut,
 		errOut,
@@ -616,13 +585,12 @@ func (s *Service) ServiceParamList(nodesRepository *nodes.Repository, publicServ
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.ServiceParamList(nodesRepository, publicServicesRepository, stdOut, errOut, publicProtocol, publicHost, publicPort)
+					s.LocalCommandsService.ServiceParamList(stdOut, errOut, publicProtocol, publicHost, publicPort)
 				}),
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: s.createAPIHandler(
-					nodesRepository,
 					func(api *APICommandsService) (commandstypes.ExecResponseDTO, error) {
 						return api.ServiceParamList(publicProtocol, publicHost, publicPort)
 					},
@@ -637,9 +605,8 @@ func (s *Service) ServiceParamList(nodesRepository *nodes.Repository, publicServ
 
 // join command
 
-func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errOut io.Writer, joinToken string) {
+func (s *Service) Join(stdOut io.Writer, errOut io.Writer, joinToken string) {
 	s.executeCommand(
-		nodesRepository,
 		"Failed to join network",
 		stdOut,
 		errOut,
@@ -647,7 +614,7 @@ func (s *Service) Join(nodesRepository *nodes.Repository, stdOut io.Writer, errO
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: s.createLocalHandler(func() {
-					s.LocalCommandsService.Join(nodesRepository, stdOut, errOut, joinToken)
+					s.LocalCommandsService.Join(stdOut, errOut, joinToken)
 				}),
 			},
 		},

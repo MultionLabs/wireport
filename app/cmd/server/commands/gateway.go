@@ -175,7 +175,7 @@ var StartGatewayCmd = &cobra.Command{
 
 		router := routes.Router(dbInstance)
 
-		commandsService.GatewayStart(*gatewayPublicIP, nodesRepository, publicServicesRepository, cmd.OutOrStdout(), cmd.ErrOrStderr(), GatewayStartConfigureOnly, router)
+		commandsService.GatewayStart(*gatewayPublicIP, cmd.OutOrStdout(), cmd.ErrOrStderr(), GatewayStartConfigureOnly, router)
 	},
 }
 
@@ -212,7 +212,7 @@ var UpGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -234,7 +234,7 @@ var DownGatewayCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.GatewayDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayDown(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -251,7 +251,7 @@ var UpgradeGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr(), nodesRepository)
+		commandsService.GatewayUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 

@@ -100,7 +100,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	// Server routes
 	mux.HandleFunc("/commands/server/new", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServerNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServerNew(services.NodesRepository, services.JoinRequestsRepository, stdOut, errOut, req.Force, req.Quiet, req.DockerSubnet)
+			services.CommandsService.ServerNew(stdOut, errOut, req.Force, req.Quiet, req.DockerSubnet)
 			return nil
 		})
 	})
@@ -111,7 +111,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 				logger.Error("[%s] Server can only remove itself; node removal request came from a different node: requested node ID: %s, current node ID: %s", r.Method, req.NodeID, r.TLS.PeerCertificates[0].Subject.CommonName)
 				return ErrFailedToCreateServerNode
 			}
-			services.CommandsService.ServerRemove(services.NodesRepository, stdOut, errOut, req.NodeID)
+			services.CommandsService.ServerRemove(stdOut, errOut, req.NodeID)
 			return nil
 		})
 	})
@@ -119,7 +119,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(_ *types.ServerListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
-			services.CommandsService.ServerList(services.NodesRepository, &requestFromNodeID, stdOut, errOut)
+			services.CommandsService.ServerList(&requestFromNodeID, stdOut, errOut)
 			return nil
 		})
 	})
@@ -127,7 +127,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	// Client routes
 	mux.HandleFunc("/commands/client/new", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ClientNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ClientNew(services.NodesRepository, services.JoinRequestsRepository, services.PublicServicesRepository, stdOut, errOut, req.JoinRequest, req.Quiet, req.Wait)
+			services.CommandsService.ClientNew(stdOut, errOut, req.JoinRequest, req.Quiet, req.Wait)
 			return nil
 		})
 	})
@@ -135,7 +135,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	mux.HandleFunc("/commands/client/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(_ *types.ClientListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
-			services.CommandsService.ClientList(services.NodesRepository, &requestFromNodeID, stdOut, errOut)
+			services.CommandsService.ClientList(&requestFromNodeID, stdOut, errOut)
 			return nil
 		})
 	})
@@ -143,21 +143,21 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	// Service routes
 	mux.HandleFunc("/commands/service/publish", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServicePublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServicePublish(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			services.CommandsService.ServicePublish(stdOut, errOut, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		})
 	})
 
 	mux.HandleFunc("/commands/service/unpublish", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceUnpublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServiceUnpublish(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			services.CommandsService.ServiceUnpublish(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		})
 	})
 
 	mux.HandleFunc("/commands/service/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(_ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServiceList(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut)
+			services.CommandsService.ServiceList(stdOut, errOut)
 			return nil
 		})
 	})
@@ -165,21 +165,21 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	// Service parameter routes
 	mux.HandleFunc("/commands/service/params/new", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServiceParamNew(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
+			services.CommandsService.ServiceParamNew(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
 		})
 	})
 
 	mux.HandleFunc("/commands/service/params/remove", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServiceParamRemove(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
+			services.CommandsService.ServiceParamRemove(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
 		})
 	})
 
 	mux.HandleFunc("/commands/service/params/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamListRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServiceParamList(services.NodesRepository, services.PublicServicesRepository, stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
+			services.CommandsService.ServiceParamList(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		})
 	})
