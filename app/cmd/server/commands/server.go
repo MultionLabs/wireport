@@ -42,7 +42,7 @@ var StatusServerCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
-		creds, err := buildSSHCredentials(cmd, args, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -59,7 +59,7 @@ var UpServerCmd = &cobra.Command{
 	Long:  `Up a wireport server node. This command is only relevant for server nodes after they joined the network.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -90,7 +90,7 @@ var DownServerCmd = &cobra.Command{
 
 		if len(args) > 0 {
 			var err error
-			creds, err = buildSSHCredentials(cmd, args, false)
+			creds, err = buildSSHCredentials(cmd, args, false, false)
 
 			if err != nil {
 				cmd.PrintErrf("❌ Error: %v\n", err)
@@ -116,7 +116,7 @@ var UpgradeServerCmd = &cobra.Command{
 	Short: "Upgrade a server",
 	Long:  `Upgrade a server. This command is only relevant for server nodes after they joined the network.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)

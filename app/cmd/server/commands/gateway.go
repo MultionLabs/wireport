@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,11 +17,22 @@ import (
 
 var GatewayStartConfigureOnly = false
 
-func readPasswordSecurely(prompt string) (string, error) {
+func readPasswordSecurely(prompt string, stdOut io.Writer, errOut io.Writer, promptToErr bool) (string, error) {
 	// readPasswordSecurely reads a password from the terminal without echoing
-	fmt.Print(prompt)
+	if promptToErr {
+		fmt.Fprintf(errOut, "%s", prompt)
+	} else {
+		fmt.Fprintf(stdOut, "%s", prompt)
+	}
+
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println() // Add newline after password input
+
+	if promptToErr {
+		fmt.Fprintf(errOut, "\n")
+	} else {
+		fmt.Fprintf(stdOut, "\n")
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +93,7 @@ func parseSSHURL(sshURL string) (username, hostname string, port uint, err error
 }
 
 // buildSSHCredentials builds SSH credentials from positional arguments or database
-func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoArgs bool) (*ssh.Credentials, error) {
+func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoArgs bool, promptToErr bool) (*ssh.Credentials, error) {
 	creds := &ssh.Credentials{}
 
 	// Try to parse SSH URL from positional argument first
@@ -114,8 +126,14 @@ func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoAr
 		creds.Host = *gatewaytNode.WGPublicIP
 		creds.Port = 22 // Default SSH port
 
-		fmt.Printf("🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
-		fmt.Printf("👤 Enter SSH username: ")
+		if promptToErr {
+			fmt.Fprintf(cmd.ErrOrStderr(), "🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
+			fmt.Fprintf(cmd.ErrOrStderr(), "👤 Enter SSH username: ")
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
+			fmt.Fprintf(cmd.OutOrStdout(), "👤 Enter SSH username: ")
+		}
+
 		_, err = fmt.Scanln(&creds.Username)
 
 		if err != nil {
@@ -137,11 +155,11 @@ func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoAr
 	// Handle authentication method
 	if keyPath := cmd.Flag("ssh-key-path").Value.String(); keyPath != "" {
 		creds.PrivateKeyPath = keyPath
-		if passphrase, err := readPasswordSecurely("🔒 Enter SSH key passphrase (leave empty if none): "); err == nil && passphrase != "" {
+		if passphrase, err := readPasswordSecurely("🔒 Enter SSH key passphrase (leave empty if none): ", cmd.OutOrStdout(), cmd.ErrOrStderr(), promptToErr); err == nil && passphrase != "" {
 			creds.Passphrase = passphrase
 		}
 	} else {
-		if password, err := readPasswordSecurely("🔒 Enter SSH password: "); err == nil {
+		if password, err := readPasswordSecurely("🔒 Enter SSH password: ", cmd.OutOrStdout(), cmd.ErrOrStderr(), promptToErr); err == nil {
 			creds.Password = password
 		} else {
 			return nil, fmt.Errorf("failed to read password: %v", err)
@@ -188,7 +206,7 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
-		creds, err := buildSSHCredentials(cmd, args, true)
+		creds, err := buildSSHCredentials(cmd, args, true, false)
 
 		if err != nil {
 			cmd.PrintErrf("Error: %v\n", err)
@@ -205,7 +223,7 @@ var UpGatewayCmd = &cobra.Command{
 	Long:  `Start wireport gateway node. It will install wireport on the gateway node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, true)
+		creds, err := buildSSHCredentials(cmd, args, true, true)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -226,7 +244,7 @@ var DownGatewayCmd = &cobra.Command{
 		var err error
 
 		if len(args) > 0 {
-			creds, err = buildSSHCredentials(cmd, args, true)
+			creds, err = buildSSHCredentials(cmd, args, true, false)
 
 			if err != nil {
 				cmd.PrintErrf("❌ Error: %v\n", err)
@@ -244,7 +262,7 @@ var UpgradeGatewayCmd = &cobra.Command{
 	Long:  `Upgrade wireport gateway node. It will upgrade the wireport gateway node to the latest version.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, true)
+		creds, err := buildSSHCredentials(cmd, args, true, false)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -267,6 +285,7 @@ func init() {
 	StatusGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
 	UpGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+
 	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 
 	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")

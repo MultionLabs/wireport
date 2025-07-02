@@ -101,6 +101,12 @@ type Node struct {
 func (c *WGConfig) ToINI() (*string, error) {
 	var sb strings.Builder
 
+	sb.WriteString("# # # # # # # # # # # # # # # # # # # # # # #\n")
+	sb.WriteString("#       wireport config for WireGuard       #\n")
+	sb.WriteString("# # # # # # # # # # # # # # # # # # # # # # #\n")
+
+	sb.WriteString("\n")
+
 	sb.WriteString("[Interface]\n")
 
 	sb.WriteString(fmt.Sprintf("Address = %s\n", c.Interface.Address.String()))
