@@ -84,7 +84,7 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 		return
 	}
 
-	logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, response.Stdout[:min(len(response.Stdout), 100)], response.Stderr[:min(len(response.Stderr), 100)])
+	logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, response.Stdout[:min(len(response.Stdout), 20)], response.Stderr[:min(len(response.Stderr), 20)])
 }
 
 func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {

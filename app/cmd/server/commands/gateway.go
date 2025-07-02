@@ -1,177 +1,15 @@
 package commands
 
 import (
-	"fmt"
-	"io"
-	"strconv"
-	"strings"
-	"syscall"
-
 	"wireport/internal/routes"
 	"wireport/internal/ssh"
 	"wireport/internal/utils"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 var GatewayStartConfigureOnly = false
-
-func readPasswordSecurely(prompt string, stdOut io.Writer, errOut io.Writer, promptToErr bool) (string, error) {
-	// readPasswordSecurely reads a password from the terminal without echoing
-	if promptToErr {
-		fmt.Fprintf(errOut, "%s", prompt)
-	} else {
-		fmt.Fprintf(stdOut, "%s", prompt)
-	}
-
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-
-	if promptToErr {
-		fmt.Fprintf(errOut, "\n")
-	} else {
-		fmt.Fprintf(stdOut, "\n")
-	}
-
-	if err != nil {
-		return "", err
-	}
-	return string(bytePassword), nil
-}
-
-// parseSSHURL parses an SSH URL in the format username@hostname:port or username@hostname
-// Returns username, hostname, port, and any error
-func parseSSHURL(sshURL string) (username, hostname string, port uint, err error) {
-	// Default port
-	port = 22
-
-	// Check if URL contains port
-	if strings.Contains(sshURL, ":") {
-		parts := strings.Split(sshURL, ":")
-		if len(parts) != 2 {
-			return "", "", 0, fmt.Errorf("invalid SSH URL format: %s", sshURL)
-		}
-
-		// Parse port
-		if portStr := parts[1]; portStr != "" {
-			parsedPort, err := strconv.ParseUint(portStr, 10, 32)
-
-			if err != nil {
-				return "", "", 0, fmt.Errorf("invalid port number: %s", portStr)
-			}
-
-			if parsedPort > 65535 {
-				return "", "", 0, fmt.Errorf("port number must be between 0 and 65535")
-			}
-
-			port = uint(parsedPort)
-		}
-
-		sshURL = parts[0]
-	}
-
-	// Parse username@hostname
-	if strings.Contains(sshURL, "@") {
-		parts := strings.Split(sshURL, "@")
-		if len(parts) != 2 {
-			return "", "", 0, fmt.Errorf("invalid SSH URL format: %s", sshURL)
-		}
-		username = parts[0]
-		hostname = parts[1]
-	} else {
-		return "", "", 0, fmt.Errorf("username is required in SSH URL format: username@hostname[:port]")
-	}
-
-	if username == "" {
-		return "", "", 0, fmt.Errorf("username cannot be empty")
-	}
-	if hostname == "" {
-		return "", "", 0, fmt.Errorf("hostname cannot be empty")
-	}
-
-	return username, hostname, port, nil
-}
-
-// buildSSHCredentials builds SSH credentials from positional arguments or database
-func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoArgs bool, promptToErr bool) (*ssh.Credentials, error) {
-	creds := &ssh.Credentials{}
-
-	// Try to parse SSH URL from positional argument first
-	if len(args) > 0 {
-		username, hostname, port, err := parseSSHURL(args[0])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse SSH URL '%s': %v", args[0], err)
-		}
-		creds.Username = username
-		creds.Host = hostname
-		creds.Port = port
-	} else {
-		if !useGatewayNodeIfNoArgs {
-			return nil, fmt.Errorf("SSH host is required. Use positional argument (username@hostname[:port])")
-		}
-
-		// If no positional argument, try to get from database
-		gatewaytNode, err := nodesRepository.GetGatewayNode()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get gateway node from database: %v", err)
-		}
-		if gatewaytNode == nil {
-			return nil, fmt.Errorf("no gateway node found in database")
-		}
-		if gatewaytNode.WGPublicIP == nil {
-			return nil, fmt.Errorf("gateway node public IP not found in database")
-		}
-
-		// Use the public IP as the host
-		creds.Host = *gatewaytNode.WGPublicIP
-		creds.Port = 22 // Default SSH port
-
-		if promptToErr {
-			fmt.Fprintf(cmd.ErrOrStderr(), "🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
-			fmt.Fprintf(cmd.ErrOrStderr(), "👤 Enter SSH username: ")
-		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "🔍 Using the bootstrapped gateway node: %s\n", creds.Host)
-			fmt.Fprintf(cmd.OutOrStdout(), "👤 Enter SSH username: ")
-		}
-
-		_, err = fmt.Scanln(&creds.Username)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to read SSH username: %v", err)
-		}
-
-		if creds.Username == "" {
-			return nil, fmt.Errorf("SSH username is required")
-		}
-	}
-
-	if creds.Host == "" {
-		return nil, fmt.Errorf("SSH host is required. Use positional argument (username@hostname[:port])")
-	}
-	if creds.Username == "" {
-		return nil, fmt.Errorf("SSH username is required. Use positional argument (username@hostname[:port])")
-	}
-
-	// Handle authentication method
-	if keyPath := cmd.Flag("ssh-key-path").Value.String(); keyPath != "" {
-		creds.PrivateKeyPath = keyPath
-		if passphrase, err := readPasswordSecurely("🔒 Enter SSH key passphrase (leave empty if none): ", cmd.OutOrStdout(), cmd.ErrOrStderr(), promptToErr); err == nil && passphrase != "" {
-			creds.Passphrase = passphrase
-		}
-	} else {
-		if password, err := readPasswordSecurely("🔒 Enter SSH password: ", cmd.OutOrStdout(), cmd.ErrOrStderr(), promptToErr); err == nil {
-			creds.Password = password
-		} else {
-			return nil, fmt.Errorf("failed to read password: %v", err)
-		}
-	}
-
-	if creds.PrivateKeyPath == "" && creds.Password == "" {
-		return nil, fmt.Errorf("SSH authentication is required. Use --ssh-key-path flag or provide password interactively")
-	}
-
-	return creds, nil
-}
+var GatewaySSHKeyPassEmpty = false
 
 var GatewayCmd = &cobra.Command{
 	Use:   "gateway",
@@ -206,7 +44,7 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
-		creds, err := buildSSHCredentials(cmd, args, true, false)
+		creds, err := buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("Error: %v\n", err)
@@ -223,7 +61,7 @@ var UpGatewayCmd = &cobra.Command{
 	Long:  `Start wireport gateway node. It will install wireport on the gateway node.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, true, true)
+		creds, err := buildSSHCredentials(cmd, args, true, true, GatewaySSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -244,7 +82,7 @@ var DownGatewayCmd = &cobra.Command{
 		var err error
 
 		if len(args) > 0 {
-			creds, err = buildSSHCredentials(cmd, args, true, false)
+			creds, err = buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)
 
 			if err != nil {
 				cmd.PrintErrf("❌ Error: %v\n", err)
@@ -262,7 +100,7 @@ var UpgradeGatewayCmd = &cobra.Command{
 	Long:  `Upgrade wireport gateway node. It will upgrade the wireport gateway node to the latest version.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, true, false)
+		creds, err := buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -283,10 +121,14 @@ func init() {
 	StartGatewayCmd.Flags().BoolVar(&GatewayStartConfigureOnly, "configure", false, "Configure wireport in gateway mode without making it available for external connections")
 
 	StatusGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	StatusGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	UpGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	DownGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpgradeGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 }

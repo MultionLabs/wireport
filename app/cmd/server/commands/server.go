@@ -10,6 +10,7 @@ import (
 var forceServerCreation = false
 var quietServerCreation = false
 var dockerSubnet = ""
+var ServerSSHKeyPassEmpty = false
 
 var ServerCmd = &cobra.Command{
 	Use:   "server",
@@ -42,7 +43,7 @@ var StatusServerCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
-		creds, err := buildSSHCredentials(cmd, args, false, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -59,7 +60,7 @@ var UpServerCmd = &cobra.Command{
 	Long:  `Up a wireport server node. This command is only relevant for server nodes after they joined the network.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, false, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -90,7 +91,7 @@ var DownServerCmd = &cobra.Command{
 
 		if len(args) > 0 {
 			var err error
-			creds, err = buildSSHCredentials(cmd, args, false, false)
+			creds, err = buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 
 			if err != nil {
 				cmd.PrintErrf("❌ Error: %v\n", err)
@@ -116,7 +117,7 @@ var UpgradeServerCmd = &cobra.Command{
 	Short: "Upgrade a server",
 	Long:  `Upgrade a server. This command is only relevant for server nodes after they joined the network.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		creds, err := buildSSHCredentials(cmd, args, false, false)
+		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 
 		if err != nil {
 			cmd.PrintErrf("❌ Error: %v\n", err)
@@ -141,11 +142,15 @@ func init() {
 	ServerCmd.AddCommand(UpgradeServerCmd)
 
 	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	StatusServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	UpServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 	UpServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
 
 	DownServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	DownServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	UpgradeServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
+	UpgradeServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 }
