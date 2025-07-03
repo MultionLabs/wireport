@@ -709,7 +709,7 @@ func (r *Repository) EnsureGatewayNode(WGPublicIP types.IPMarshable, WGPublicPor
 	}
 
 	if gatewayNode == nil {
-		logger.Info("Gateway node not found, creating gateway node")
+		logger.Info("Gateway node not found, initiating a new gateway node")
 
 		gatewayNode, err = r.CreateGateway(WGPublicIP, WGPublicPort, gatewayPublicIP, gatewayPublicPort)
 
@@ -763,10 +763,32 @@ func (r *Repository) GetNodesByRole(role types.NodeRole) ([]types.Node, error) {
 	return nodes, nil
 }
 
+func (r *Repository) CountNodesByRole(role types.NodeRole) (int, error) {
+	var count int64
+
+	result := r.db.Model(&types.Node{}).Where("role = ?", role).Count(&count)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return int(count), nil
+}
+
 func (r *Repository) DeleteServer(nodeID string) error {
 	var node types.Node
 
 	result := r.db.Delete(&node, "id = ? AND role = ?", nodeID, types.NodeRoleServer)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func (r *Repository) DeleteAll() error {
+	result := r.db.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&types.Node{})
 
 	if result.Error != nil {
 		return result.Error

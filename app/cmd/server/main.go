@@ -12,40 +12,48 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "wireport",
-	Short: "VPN tunnel for exposing remote docker services to internet and local network",
-	Long: `wireport creates a VPN network that securely exposes remote docker services (by their container names) to both internet and local development environment.
-wireport has nodes of three types:
+	Short: "Ingress proxy for exposing local services and remote Docker-based workloads to the Internet",
+	Long: `wireport is a self-hosted ingress proxy and VPN tunnel that securely exposes private local and Docker-based services to the Internet, with free, automatically renewable SSL certificates. Powered by WireGuard (secure networking), CoreDNS and Caddy (performant reverse proxy).
 
-- GATEWAY: a VPS with a public IP address, accessible from the internet
-- SERVER: a server to run docker-based workloads on, that should be exposed to both the public internet and local development network (by their container names)
-- CLIENT: a developer machine that connects to the wireport network and has access to the docker-based services from the remote server
+- Exposing local and Docker-based services running in a local network (e.g., on the local machine, on a corporate network, on a NAS, or on a home server) to the Internet
+- Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services.
 
-Spin up a complete wireport setup in four steps:
+Key Concepts:
 
-1. Start the GATEWAY, on a VPS with a public IP address execute the following command:
+- GATEWAY – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
+- CLIENT – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
+- SERVER (optional) – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
-wireport gateway start
+Spin up a complete wireport setup in just two commands:
 
-2. Create a new join-request, on the GATEWAY machine inside the wireport docker execute the following command:
+1. Bootstrap the GATEWAY, on a VPS with a public IP address execute the following command:
 
-wireport server new
+wireport gateway up sshuser@140.120.110.10:22
 
--- the command will output a join-request token; copy the token
+(replace sshuser with a username that has access to the VPS, 140.120.110.10 with your VPS public IP address, 22 with your SSH port)
 
-3. Start the SERVER, on a machine that should run docker-based workloads execute the following command:
+2. Expose a local service to the Internet:
 
-wireport join <TOKEN>
+wireport service publish \
+  --local  http://10.0.0.2:3000 \
+  --public https://demo.example.com:443
 
--- here use the token you copied in the previous step
-
-4. Create a new CLIENT wireguard configuration; on the GATEWAY machine inside the wireport docker execute the following command:
-
-wireport client new
-
--- the command will output a wireguard configuration; copy the configuration and use it on your client machine
+(replace 10.0.0.2 with the IP address of the local service, demo.example.com with the public domain name of the service)
+(check help of 'wireport service publish' for more details on supported protocols and allowed ports)
 
 Done!
-Now you can access the docker-based services from the remote server from your client machine and over the public internet`,
+
+Now you should be able to access the Docker-based services from your local machine over the public Internet.
+
+If the installation process fails, or the service is not accessible over the Internet, make sure that:
+
+- the required ports are open on the gateway VPS (80/tcp, 443/tcp, 4060/tcp and 51820/udp)
+- there's a correct DNS A-record, pointing to your gateway VPS
+- the gateway VPS has docker installed
+- the ssh user, used for bootstraping the gateway VPS, is allowed to run docker commands on the gateway VPS
+
+If this does not help, check the logs of the wireport docker container on gateway.
+`,
 	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s); db path: %s", version.Version, version.Commit, version.Date, version.Arch, version.OS, config.DatabasePath),
 }
 

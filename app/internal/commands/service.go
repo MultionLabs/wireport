@@ -168,7 +168,23 @@ func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut i
 		[]RoleGroup{
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway, types.NodeRoleClient},
-				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+				Handler: func(currentNode *types.Node, api *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					if currentNode == nil {
+						return nil, fmt.Errorf("current node is required to tear down gateway node")
+					}
+
+					if currentNode.Role == types.NodeRoleClient {
+						serverListResult, err := api.ServerList()
+
+						if err != nil {
+							return nil, err
+						}
+
+						if serverListResult.ServerNodesCount > 0 {
+							return nil, fmt.Errorf("❌ Cannot tear down gateway node with active server nodes (%d), please tear down all server nodes first", serverListResult.ServerNodesCount)
+						}
+					}
+
 					local.GatewayDown(creds, stdOut, errOut)
 					return nil, nil
 				},
@@ -291,13 +307,13 @@ func (s *Service) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
-				Handler: func(currentNode *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+				Handler: func(currentNode *types.Node, api *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
 					if currentNode == nil {
 						return nil, fmt.Errorf("current node is required to tear down server node")
 					}
 
 					// 1. Tear down server node
-					s.LocalCommandsService.ServerDown(creds, stdOut, errOut)
+					local.ServerDown(creds, stdOut, errOut)
 
 					// 2. Remove server node from the gateway
 					execResponseDTO, err := api.ServerRemove(currentNode.ID)
@@ -323,8 +339,8 @@ func (s *Service) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					execResponseDTO, err := api.ServerList()
-					return &execResponseDTO, err
+					serverListResult, err := api.ServerList()
+					return &serverListResult.ExecResponseDTO, err
 				},
 			},
 		},

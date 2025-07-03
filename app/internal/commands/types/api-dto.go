@@ -86,3 +86,10 @@ type JoinRequestDTO struct {
 type JoinResponseDTO struct {
 	NodeConfig *node_types.Node `json:"node"`
 }
+
+//
+
+type ServerListResponseDTO struct {
+	ExecResponseDTO
+	ServerNodesCount int `json:"serverNodesCount"`
+}

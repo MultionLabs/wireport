@@ -15,13 +15,13 @@ var ServerSSHKeyPassEmpty = false
 var ServerCmd = &cobra.Command{
 	Use:   "server",
 	Short: "wireport server commands",
-	Long:  `Manage connected wireport server nodes and create join-requests for connecting new servers to the wireport network`,
+	Long:  `Manage connected wireport server nodes and create join-requests for connecting new servers to the wireport network.`,
 }
 
 var NewServerCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create a new join-request for connecting a server to wireport network",
-	Long:  `Create a new join-request for connecting a server to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command)`,
+	Long:  `Create a new join-request for connecting a server to wireport network. The join-request will generate a token that can be used to join the network (see 'wireport join' command help)`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		commandsService.ServerNew(cmd.OutOrStdout(), cmd.ErrOrStderr(), forceServerCreation, quietServerCreation, dockerSubnet)
 	},
@@ -29,18 +29,18 @@ var NewServerCmd = &cobra.Command{
 
 var StartServerCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the wireport server",
-	Long:  `Start the wireport server. This command is only relevant for server nodes after they joined the network.`,
+	Short: "Start wireport in server mode",
+	Long:  `Start wireport in server mode. This command is only relevant for server nodes after they joined the network.`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		commandsService.ServerStart(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
 var StatusServerCmd = &cobra.Command{
-	Use:   "status [username@hostname[:port]]",
+	Use:   "status username@hostname[:port]",
 	Short: "Check wireport server node status",
-	Long:  `Check the status of wireport server node: SSH connection, Docker installation, and wireport server status.`,
-	Args:  cobra.MaximumNArgs(1),
+	Long:  `Check the status of a wireport server node: SSH connection, Docker installation, and wireport server status.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
 		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
@@ -55,10 +55,10 @@ var StatusServerCmd = &cobra.Command{
 }
 
 var UpServerCmd = &cobra.Command{
-	Use:   "up",
-	Short: "Up a wireport server node",
-	Long:  `Up a wireport server node. This command is only relevant for server nodes after they joined the network.`,
-	Args:  cobra.MaximumNArgs(1),
+	Use:   "up username@hostname[:port]",
+	Short: "Bootstrap a wireport server node",
+	Long:  `Bootstrap a wireport server node: install and configure wireport software in server mode on it.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 
@@ -72,7 +72,7 @@ var UpServerCmd = &cobra.Command{
 			_, err := types.ParseIPNetMarshable(dockerSubnet, true)
 
 			if err != nil {
-				cmd.PrintErrf("Failed to parse Docker subnet: %v\n", err)
+				cmd.PrintErrf("❌ Failed to parse Docker subnet: %v\n", err)
 				return
 			}
 		}
@@ -82,9 +82,9 @@ var UpServerCmd = &cobra.Command{
 }
 
 var DownServerCmd = &cobra.Command{
-	Use:   "down",
-	Short: "Stop wireport server node",
-	Long:  `Stop wireport server node. This command is only relevant for server nodes after they joined the network.`,
+	Use:   "down username@hostname[:port]",
+	Short: "Teardown wireport server node",
+	Long:  `Teardown wireport server node: stop the wireport server software and remove all the data and configuration from the server node, deregister the server node from the wireport network.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var creds *ssh.Credentials
@@ -113,9 +113,10 @@ var ListServerCmd = &cobra.Command{
 }
 
 var UpgradeServerCmd = &cobra.Command{
-	Use:   "upgrade",
+	Use:   "upgrade username@hostname[:port]",
 	Short: "Upgrade a server",
-	Long:  `Upgrade a server. This command is only relevant for server nodes after they joined the network.`,
+	Long:  `Upgrade a server. This command will upgrade the wireport server software to the latest version. This command is only relevant for server nodes after they joined the network.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, false, false, ServerSSHKeyPassEmpty)
 

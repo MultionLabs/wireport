@@ -128,15 +128,15 @@ func (a *APICommandsService) ClientList() (types.ExecResponseDTO, error) {
 	return clientListResponseDTO, nil
 }
 
-func (a *APICommandsService) ServerList() (types.ExecResponseDTO, error) {
-	serverListResponseDTO, err := makeSecureRequestWithResponse[types.ServerListRequestDTO, types.ExecResponseDTO](
+func (a *APICommandsService) ServerList() (types.ServerListResponseDTO, error) {
+	serverListResponseDTO, err := makeSecureRequestWithResponse[types.ServerListRequestDTO, types.ServerListResponseDTO](
 		a, "POST", "/commands/server/list",
 		types.ServerListRequestDTO{},
 	)
 
 	if err != nil {
 		logger.Error("Failed to marshal request body: %v", err)
-		return types.ExecResponseDTO{}, err
+		return types.ServerListResponseDTO{}, err
 	}
 
 	return serverListResponseDTO, nil

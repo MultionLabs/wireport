@@ -14,13 +14,13 @@ var GatewaySSHKeyPassEmpty = false
 var GatewayCmd = &cobra.Command{
 	Use:   "gateway",
 	Short: "wireport gateway commands",
-	Long:  `Manage wireport gateway node: configure the gateway node and start the wireport gateway node`,
+	Long:  `Manage wireport gateway node lifecycle and configuration.`,
 }
 
 var StartGatewayCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start wireport in gateway mode",
-	Long:  `Start wireport in gateway mode. It will handle network connections and state management.`,
+	Long:  `Start wireport in gateway mode. wireport in gateway mode will handle WireGuard network, server, client and service management. This command is only relevant for gateway nodes.`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		gatewayPublicIP, err := utils.GetPublicIP()
 
@@ -38,16 +38,16 @@ var StartGatewayCmd = &cobra.Command{
 var StatusGatewayCmd = &cobra.Command{
 	Use:   "status [username@hostname[:port]]",
 	Short: "Check wireport gateway node status",
-	Long: `Check the status of wireport gateway node: SSH connection, Docker installation, and wireport status.
+	Long: `Check the status of a wireport gateway node: SSH connection, Docker installation, and wireport status.
 
-If no username@hostname[:port] is provided, the command will use the bootstrapped gateway node.`,
+If no username@hostname[:port] is provided, the command will use the IP address of the bootstrapped gateway node and will prompt user for the SSH credentials.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Build credentials from positional argument or flags
 		creds, err := buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)
 
 		if err != nil {
-			cmd.PrintErrf("Error: %v\n", err)
+			cmd.PrintErrf("❌ Error: %v\n", err)
 			return
 		}
 
@@ -57,8 +57,8 @@ If no username@hostname[:port] is provided, the command will use the bootstrappe
 
 var UpGatewayCmd = &cobra.Command{
 	Use:   "up username@hostname[:port]",
-	Short: "Start wireport gateway node",
-	Long:  `Start wireport gateway node. It will install wireport on the gateway node.`,
+	Short: "Bootstrap wireport gateway node",
+	Long:  `Bootstrap wireport gateway node: install and configure wireport software in gateway mode on it.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true, true, GatewaySSHKeyPassEmpty)
@@ -74,8 +74,8 @@ var UpGatewayCmd = &cobra.Command{
 
 var DownGatewayCmd = &cobra.Command{
 	Use:   "down [username@hostname[:port]]",
-	Short: "Stop wireport gateway node",
-	Long:  `Stop wireport gateway node. It will stop the wireport gateway node and remove all data from the gateway node.`,
+	Short: "Teardown wireport gateway node",
+	Long:  `Teardown wireport gateway node: stop the wireport gateway software and remove all the data and configuration from the gateway node.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var creds *ssh.Credentials
@@ -97,7 +97,7 @@ var DownGatewayCmd = &cobra.Command{
 var UpgradeGatewayCmd = &cobra.Command{
 	Use:   "upgrade [username@hostname[:port]]",
 	Short: "Upgrade wireport gateway node",
-	Long:  `Upgrade wireport gateway node. It will upgrade the wireport gateway node to the latest version.`,
+	Long:  `Upgrade wireport gateway node to the latest version of the wireport gateway docker image. This command is only relevant for bootstrapped gateway nodes.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		creds, err := buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)

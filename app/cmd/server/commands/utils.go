@@ -101,24 +101,25 @@ func buildSSHCredentials(cmd *cobra.Command, args []string, useGatewayNodeIfNoAr
 		creds.Host = hostname
 		creds.Port = port
 	} else {
+		errWrongArgs := fmt.Errorf("wrong arguments; use positional argument to specify the SSH credentials (username@hostname[:port])")
 		if !useGatewayNodeIfNoArgs {
-			return nil, fmt.Errorf("SSH host is required. Use positional argument (username@hostname[:port])")
+			return nil, errWrongArgs
 		}
 
 		// If no positional argument, try to get from database
 		gatewaytNode, err := nodesRepository.GetGatewayNode()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get gateway node from database: %v", err)
+			return nil, fmt.Errorf("failed to get gateway node from database: %v: %v", err, errWrongArgs)
 		}
 		if gatewaytNode == nil {
-			return nil, fmt.Errorf("no gateway node found in database")
+			return nil, fmt.Errorf("no gateway node found in database: %v", errWrongArgs)
 		}
-		if gatewaytNode.WGPublicIP == nil {
-			return nil, fmt.Errorf("gateway node public IP not found in database")
+		if gatewaytNode.GatewayPublicIP == "" {
+			return nil, fmt.Errorf("gateway node public IP is not set: %v", errWrongArgs)
 		}
 
 		// Use the public IP as the host
-		creds.Host = *gatewaytNode.WGPublicIP
+		creds.Host = gatewaytNode.GatewayPublicIP
 		creds.Port = 22 // Default SSH port
 
 		if promptToErr {

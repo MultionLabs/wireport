@@ -10,7 +10,7 @@ func GetPublicIP() (*string, error) {
 	resp, err := http.Get("https://ipinfo.io/ip")
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get public ip: %w", err)
+		return nil, fmt.Errorf("failed to get node public ip (required for gateway setup): %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -18,7 +18,7 @@ func GetPublicIP() (*string, error) {
 	publicIP, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read public ip: %w", err)
+		return nil, fmt.Errorf("failed to read node public ip (required for gateway setup): %w", err)
 	}
 
 	publicIPString := string(publicIP)

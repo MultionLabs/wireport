@@ -48,7 +48,7 @@ func validateRequest(w http.ResponseWriter, r *http.Request, operation string) b
 }
 
 // a generic handler for requests (request body validation and parsing)
-func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(*T, *bytes.Buffer, *bytes.Buffer) error) {
+func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(*T, *bytes.Buffer, *bytes.Buffer) error, customResponsePacker func(stdOut, errOut *bytes.Buffer) (any, error)) {
 	operation := r.URL.Path
 	if !validateRequest(w, r, operation) {
 		return
@@ -72,9 +72,21 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 		return
 	}
 
-	response := types.ExecResponseDTO{
-		Stdout: strings.TrimSpace(stdOut.String()),
-		Stderr: strings.TrimSpace(errOut.String()),
+	var response any // JSON-serializable type
+
+	if customResponsePacker != nil {
+		response, err = customResponsePacker(stdOut, errOut)
+
+		if err != nil {
+			logger.Error("[%s] Failed to pack %s response: %v", r.Method, operation, err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		response = types.ExecResponseDTO{
+			Stdout: strings.TrimSpace(stdOut.String()),
+			Stderr: strings.TrimSpace(errOut.String()),
+		}
 	}
 
 	err = json.NewEncoder(w).Encode(response)
@@ -84,7 +96,11 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 		return
 	}
 
-	logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, response.Stdout[:min(len(response.Stdout), 20)], response.Stderr[:min(len(response.Stderr), 20)])
+	if execResp, ok := response.(types.ExecResponseDTO); ok {
+		logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, execResp.Stdout[:min(len(execResp.Stdout), 20)], execResp.Stderr[:min(len(execResp.Stderr), 20)])
+	} else {
+		logger.Info("[%s] %s response: custom response type", r.Method, operation)
+	}
 }
 
 func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
@@ -113,7 +129,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(req *types.ServerNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServerNew(stdOut, errOut, req.Force, req.Quiet, req.DockerSubnet)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/server/remove", func(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +140,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 			}
 			services.CommandsService.ServerRemove(stdOut, errOut, req.NodeID)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +148,20 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
 			services.CommandsService.ServerList(&requestFromNodeID, stdOut, errOut)
 			return nil
+		}, func(stdOut, errOut *bytes.Buffer) (any, error) {
+			serversCount, err := services.NodesRepository.CountNodesByRole(node_types.NodeRoleServer)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return types.ServerListResponseDTO{
+				ExecResponseDTO: types.ExecResponseDTO{
+					Stdout: stdOut.String(),
+					Stderr: errOut.String(),
+				},
+				ServerNodesCount: serversCount,
+			}, nil
 		})
 	})
 
@@ -140,7 +170,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(req *types.ClientNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ClientNew(stdOut, errOut, req.JoinRequest, req.Quiet, req.Wait)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/client/list", func(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +178,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
 			services.CommandsService.ClientList(&requestFromNodeID, stdOut, errOut)
 			return nil
-		})
+		}, nil)
 	})
 
 	// Service routes
@@ -156,21 +186,21 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(req *types.ServicePublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServicePublish(stdOut, errOut, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/unpublish", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceUnpublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceUnpublish(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(_ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceList(stdOut, errOut)
 			return nil
-		})
+		}, nil)
 	})
 
 	// Service parameter routes
@@ -178,21 +208,21 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamNew(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/params/remove", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamRemove(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
-		})
+		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/params/list", func(w http.ResponseWriter, r *http.Request) {
 		handleRequestWithBody(w, r, func(req *types.ServiceParamListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamList(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
-		})
+		}, nil)
 	})
 
 	// special case with different response format

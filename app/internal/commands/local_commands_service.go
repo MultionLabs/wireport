@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 	"wireport/cmd/server/config"
-	commandstypes "wireport/internal/commands/types"
 	"wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/joinrequests"
@@ -40,7 +39,6 @@ func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, stdOut io.Wr
 
 	if err != nil {
 		fmt.Fprintf(errOut, "wireport gateway node start failed: %v\n", err)
-		fmt.Fprintf(errOut, "Failed to ensure gateway node: %v\n", err)
 		return
 	}
 
@@ -58,11 +56,10 @@ func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, stdOut io.Wr
 			tlsConfig, err = gatewayNode.GatewayCertBundle.GetServerTLSConfig()
 
 			if err != nil {
-				serverError <- fmt.Errorf("failed to get TLS config: %v", err)
+				serverError <- fmt.Errorf("Failed to get TLS config for the gateway control server: %v", err)
 				return
 			}
 
-			// Create TLS server
 			server := &http.Server{
 				Addr:      fmt.Sprintf(":%d", config.Config.ControlServerPort),
 				Handler:   router,
@@ -85,9 +82,9 @@ func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, stdOut io.Wr
 	}
 
 	if !gatewayStartConfigureOnly {
-		fmt.Fprintf(stdOut, "wireport server has started with mTLS on gateway: %s\n", *gatewayNode.WGPublicIP)
+		fmt.Fprintf(stdOut, "wireport server has started with mTLS on gateway: %s\n", gatewayPublicIP)
 	} else {
-		fmt.Fprintf(stdOut, "wireport has been configured on the gateway: %s\n", *gatewayNode.WGPublicIP)
+		fmt.Fprintf(stdOut, "wireport has been configured on the gateway: %s\n", gatewayPublicIP)
 	}
 
 	if !gatewayStartConfigureOnly {
@@ -164,7 +161,7 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 	fmt.Fprintf(stdOut, "\n")
 
 	// wireport Status Check
-	fmt.Fprintf(stdOut, "🚀 wireport Status\n")
+	fmt.Fprintf(stdOut, "🚀 wireport Gateway Status\n")
 	isRunning, err := sshService.IsWireportGatewayContainerRunning()
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
@@ -191,7 +188,7 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
 		}
 
-		fmt.Fprintf(stdOut, "   💡 Run 'wireport gateway up %s@%s:%d' to install and start wireport gateway node.\n", creds.Username, creds.Host, creds.Port)
+		fmt.Fprintf(stdOut, "   💡 Run 'wireport gateway up %s@%s:%d' to bootstrap wireport gateway and start it.\n", creds.Username, creds.Host, creds.Port)
 	}
 	fmt.Fprintf(stdOut, "\n")
 
@@ -207,19 +204,19 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 	if networkStatus != "" {
 		fmt.Fprintf(stdOut, "   Network: ✅ '%s' exists\n", strings.TrimSpace(networkStatus))
 	} else {
-		fmt.Fprintf(stdOut, "   Network: ❌ %s not found\n", config.Config.DockerNetworkName)
+		fmt.Fprintf(stdOut, "   Network: ❌ '%s' not found\n", config.Config.DockerNetworkName)
 		fmt.Fprintf(stdOut, "💡 Network will be created when wireport starts.\n")
 	}
 	fmt.Fprintf(stdOut, "\n")
 
-	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
+	fmt.Fprintf(stdOut, "✨ Gateway Status check completed successfully!\n")
 }
 
 func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
 	sshService := ssh.NewService()
 
-	fmt.Fprintf(errOut, "🚀 wireport Gateway Up\n")
-	fmt.Fprintf(errOut, "==========================\n\n")
+	fmt.Fprintf(errOut, "🚀 wireport Gateway Bootstrapping\n")
+	fmt.Fprintf(errOut, "=================================\n\n")
 
 	// SSH Connection
 	fmt.Fprintf(errOut, "📡 Connecting to gateway...\n")
@@ -253,8 +250,7 @@ func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Write
 
 	fmt.Fprintf(errOut, "   Status: ❌ Not Running\n")
 	fmt.Fprintf(errOut, "   💡 Proceeding with installation...\n\n")
-	// Installation
-	fmt.Fprintf(errOut, "📦 Installing wireport...\n")
+	fmt.Fprintf(errOut, "📦 Installing wireport gateway...\n")
 	fmt.Fprintf(errOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
 	_, clientJoinToken, err := sshService.InstallWireportGateway()
@@ -266,7 +262,6 @@ func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Write
 	}
 
 	fmt.Fprintf(errOut, "   Status: ✅ Installation Completed\n\n")
-	// Verification
 	fmt.Fprintf(errOut, "✅ Verifying installation...\n")
 
 	installationConfirmed, err := sshService.IsWireportGatewayContainerRunning()
@@ -292,7 +287,7 @@ func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Write
 		fmt.Fprintf(errOut, "   ✅ Client Join Token Applied\n\n")
 	}
 
-	fmt.Fprintf(errOut, "✨ Bootstrap process completed!\n")
+	fmt.Fprintf(errOut, "✨ Gateway Bootstrapping completed successfully!\n")
 }
 
 func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
@@ -303,13 +298,13 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 		// Local execution – just detach and remove docker network like in ServerDown
 		err = dockerutils.DetachDockerNetworkFromAllContainers()
 		if err != nil {
-			fmt.Fprintf(errOut, "Error detaching docker network: %v\n", err)
+			fmt.Fprintf(errOut, "Error detaching wireport docker network: %v\n", err)
 			return
 		}
 
 		err = dockerutils.RemoveDockerNetwork()
 		if err != nil {
-			fmt.Fprintf(errOut, "Error removing docker network: %v\n", err)
+			fmt.Fprintf(errOut, "Error removing wireport docker network: %v\n", err)
 			return
 		}
 
@@ -324,8 +319,8 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 
 	sshService := ssh.NewService()
 
-	fmt.Fprintf(stdOut, "🚀 wireport Gateway Tearing down\n")
-	fmt.Fprintf(stdOut, "================================\n\n")
+	fmt.Fprintf(stdOut, "🚀 wireport Gateway Teardown\n")
+	fmt.Fprintf(stdOut, "============================\n\n")
 
 	// SSH Connection
 	fmt.Fprintf(stdOut, "📡 Connecting to gateway...\n")
@@ -351,235 +346,221 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 
 	if !isRunning {
 		fmt.Fprintf(stdOut, "   Status: ❌ Not Running\n")
-		fmt.Fprintf(stdOut, "   💡 wireport gateway is not running\n\n")
+		fmt.Fprintf(stdOut, "   💡 wireport gateway is not running, teardown is not required\n\n")
 		return
 	}
 
 	// Teardown wireport gateway
-	fmt.Fprintf(stdOut, "🛑 Tearing down wireport gateway...\n")
+	fmt.Fprintf(stdOut, "🛑 Gateway node Teardown\n")
 	fmt.Fprintf(stdOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	_, err = sshService.TeardownWireportGateway()
-	if err != nil {
-		fmt.Fprintf(stdOut, "   Status: ❌ Tearing down Failed\n")
+	success, err := sshService.TeardownWireportGateway()
+
+	if err != nil || !success {
+		fmt.Fprintf(stdOut, "   Status: ❌ Teardown Failed\n")
 		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
 
-	fmt.Fprintf(stdOut, "   Status: ✅ Tearing down Completed\n\n")
+	fmt.Fprintf(stdOut, "   Status: ✅ Teardown Completed\n\n")
 
-	fmt.Fprintf(stdOut, "✨ Gateway tearing down process completed!\n")
-}
-
-func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	// reset local state
+	fmt.Fprintf(stdOut, "🔄 Resetting local state...\n")
+	err = s.NodesRepository.DeleteAll()
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
 
-	switch currentNode.Role {
-	case types.NodeRoleClient:
-		sshService := ssh.NewService()
+	fmt.Fprintf(stdOut, "   Status: ✅ Completed\n\n")
 
-		err = sshService.Connect(creds)
+	fmt.Fprintf(stdOut, "✨ Gateway Teardown completed successfully!\n")
+}
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to connect to gateway: %v\n", err)
-			return
-		}
+func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, _ io.Writer) {
+	sshService := ssh.NewService()
 
-		defer sshService.Close()
+	fmt.Fprintf(stdOut, "🔄 wireport Gateway Upgrade\n")
+	fmt.Fprintf(stdOut, "===========================\n\n")
 
-		fmt.Fprintf(stdOut, "Upgrading wireport gateway node...\n")
+	// SSH Connection
+	fmt.Fprintf(stdOut, "📡 Connecting to gateway...\n")
+	fmt.Fprintf(stdOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-		success, err := sshService.UpgradeWireportGateway()
+	err := sshService.Connect(creds)
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to upgrade wireport gateway: %v\n", err)
-			return
-		}
-
-		if success {
-			fmt.Fprintf(stdOut, "Wireport gateway node upgraded successfully\n")
-		} else {
-			fmt.Fprintf(errOut, "Failed to upgrade wireport gateway\n")
-		}
-	default:
-		fmt.Fprintf(errOut, "Can only upgrade wireport gateway node from a client node\n")
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
+
+	defer sshService.Close()
+	fmt.Fprintf(stdOut, "   Status: ✅ Connected\n\n")
+
+	// Upgrade wireport gateway
+	fmt.Fprintf(stdOut, "🔄 Upgrading wireport gateway...\n")
+	fmt.Fprintf(stdOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	success, err := sshService.UpgradeWireportGateway()
+
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if success {
+		fmt.Fprintf(stdOut, "   Status: ✅ Upgraded Successfully\n")
+		fmt.Fprintf(stdOut, "   🎉 wireport gateway node has been successfully upgraded!\n\n")
+	} else {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   💡 Upgrade process completed but may not have been successful.\n\n")
+	}
+
+	fmt.Fprintf(stdOut, "✨ Gateway Upgrade completed!\n")
 }
 
 // server
 
 func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCreation bool, dockerSubnet string, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	totalDockerSubnets, availableDockerSubnets, err := s.NodesRepository.TotalAndAvailableDockerSubnets()
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		fmt.Fprintf(errOut, "Failed to count available Docker subnets: %v\n", err)
 		return
 	}
 
-	switch currentNode.Role {
-	case types.NodeRoleGateway:
-		// local execution
-		totalDockerSubnets, availableDockerSubnets, err := s.NodesRepository.TotalAndAvailableDockerSubnets()
+	totalServerRoleJoinRequests := s.JoinRequestsRepository.CountServerJoinRequests()
+
+	if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
+		fmt.Fprintf(errOut, "No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
+		return
+	}
+
+	totalWireguardClients, availableWireguardClients, err := s.NodesRepository.TotalAvailableWireguardClients()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to count available WireGuard clients: %v\n", err)
+		return
+	}
+
+	totalJoinRequests := s.JoinRequestsRepository.CountAll()
+
+	if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
+		fmt.Fprintf(errOut, "No WireGuard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
+		return
+	}
+
+	var dockerSubnetPtr *string
+	var parsedDockerSubnet *types.IPNetMarshable
+
+	if dockerSubnet != "" {
+		// validate the subnet format
+		parsedDockerSubnet, err = types.ParseIPNetMarshable(dockerSubnet, true)
 
 		if err != nil {
-			fmt.Fprintf(errOut, "Failed to count available Docker subnets: %v\n", err)
+			fmt.Fprintf(errOut, "Failed to parse Docker subnet: %v\n", err)
 			return
 		}
 
-		totalServerRoleJoinRequests := s.JoinRequestsRepository.CountServerJoinRequests()
-
-		if availableDockerSubnets <= 0 || totalServerRoleJoinRequests >= availableDockerSubnets {
-			fmt.Fprintf(errOut, "No Docker subnets available. Please delete some server nodes (total used: %d) or server join-requests (total used: %d) to free up some subnets.\n", totalDockerSubnets, totalServerRoleJoinRequests)
+		if !s.NodesRepository.IsDockerSubnetAvailable(parsedDockerSubnet) {
+			fmt.Fprintf(errOut, "Docker subnet %s is already in use\n", dockerSubnet)
 			return
 		}
 
-		totalWireguardClients, availableWireguardClients, err := s.NodesRepository.TotalAvailableWireguardClients()
+		dockerSubnetPtr = &dockerSubnet
+
+		if !quietServerCreation {
+			fmt.Fprintf(stdOut, "Using custom Docker subnet: %s\n", dockerSubnet)
+		}
+	}
+
+	if forceServerCreation {
+		_, err = s.NodesRepository.CreateServer(dockerSubnetPtr)
 
 		if err != nil {
-			fmt.Fprintf(errOut, "Failed to count available Wireguard clients: %v\n", err)
-			return
-		}
-
-		totalJoinRequests := s.JoinRequestsRepository.CountAll()
-
-		if availableWireguardClients <= 0 || totalJoinRequests >= availableWireguardClients {
-			fmt.Fprintf(errOut, "No Wireguard clients available. Please delete some client/server nodes (total used: %d) or client/server join-requests (total used: %d) to free up some clients.\n", totalWireguardClients, totalJoinRequests)
-			return
-		}
-
-		var dockerSubnetPtr *string
-		var parsedDockerSubnet *types.IPNetMarshable
-
-		if dockerSubnet != "" {
-			// validate the subnet format
-			parsedDockerSubnet, err = types.ParseIPNetMarshable(dockerSubnet, true)
-
-			if err != nil {
-				fmt.Fprintf(errOut, "Failed to parse Docker subnet: %v\n", err)
-				return
-			}
-
-			if !s.NodesRepository.IsDockerSubnetAvailable(parsedDockerSubnet) {
-				fmt.Fprintf(errOut, "Docker subnet %s is already in use\n", dockerSubnet)
-				return
-			}
-
-			dockerSubnetPtr = &dockerSubnet
-
-			if !quietServerCreation {
-				fmt.Fprintf(stdOut, "Using custom Docker subnet: %s\n", dockerSubnet)
-			}
-		}
-
-		if forceServerCreation {
-			if !quietServerCreation {
-				fmt.Fprintf(stdOut, "Force flag detected, creating server node without generating a join request\n")
-			}
-
-			_, err = s.NodesRepository.CreateServer(dockerSubnetPtr)
-
-			if err != nil {
-				fmt.Fprintf(errOut, "Failed to create server node: %v\n", err)
-				return
-			}
-
-			if !quietServerCreation {
-				fmt.Fprintf(stdOut, "Server node created without join request\n")
-			}
-
-			return
-		}
-
-		gatewayNode, err := s.NodesRepository.GetGatewayNode()
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to get gateway node: %v\n", err)
-			return
-		}
-
-		joinRequestID := uuid.New().String()
-
-		err = gatewayNode.GatewayCertBundle.AddClient(mtls.Options{
-			CommonName: joinRequestID,
-			Expiry:     config.Config.CertExpiry,
-		})
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to add client to gateway cert bundle: %v\n", err)
-			return
-		}
-
-		err = s.NodesRepository.SaveNode(gatewayNode)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to save gateway node: %v\n", err)
-			return
-		}
-
-		clientCertBundle, err := gatewayNode.GatewayCertBundle.GetClientBundlePublic(joinRequestID)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
-			return
-		}
-
-		joinRequest, err := s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
-			UDPAddr: net.UDPAddr{
-				IP:   net.ParseIP(*gatewayNode.WGPublicIP),
-				Port: int(config.Config.ControlServerPort),
-			},
-		}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
-			return
-		}
-
-		joinRequestBase64, err := joinRequest.ToBase64()
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
+			fmt.Fprintf(errOut, "Failed to create server node: %v\n", err)
 			return
 		}
 
 		if !quietServerCreation {
-			fmt.Fprintf(stdOut, "wireport:\n\nServer created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
-		} else {
-			fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
+			fmt.Fprintf(stdOut, "Server node created\n")
 		}
+
+		return
+	}
+
+	gatewayNode, err := s.NodesRepository.GetGatewayNode()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get gateway node: %v\n", err)
+		return
+	}
+
+	joinRequestID := uuid.New().String()
+
+	err = gatewayNode.GatewayCertBundle.AddClient(mtls.Options{
+		CommonName: joinRequestID,
+		Expiry:     config.Config.CertExpiry,
+	})
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to add client to gateway cert bundle: %v\n", err)
+		return
+	}
+
+	err = s.NodesRepository.SaveNode(gatewayNode)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to save gateway node: %v\n", err)
+		return
+	}
+
+	clientCertBundle, err := gatewayNode.GatewayCertBundle.GetClientBundlePublic(joinRequestID)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get client cert bundle: %v\n", err)
+		return
+	}
+
+	joinRequest, err := s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
+		UDPAddr: net.UDPAddr{
+			IP:   net.ParseIP(*gatewayNode.WGPublicIP),
+			Port: int(config.Config.ControlServerPort),
+		},
+	}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
+		return
+	}
+
+	joinRequestBase64, err := joinRequest.ToBase64()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to encode join request: %v\n", err)
+		return
+	}
+
+	if !quietServerCreation {
+		fmt.Fprintf(stdOut, "✅ Server created, execute the command below on the server to join the network:\n\nwireport join %s\n", *joinRequestBase64)
+	} else {
+		fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
 	}
 }
 
-func (s *LocalCommandsService) ServerRemove(_ io.Writer, errOut io.Writer, serverNodeID string) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerRemove(stdOut io.Writer, errOut io.Writer, serverNodeID string) {
+	err := s.NodesRepository.DeleteServer(serverNodeID)
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		fmt.Fprintf(errOut, "Failed to remove server node '%s': %v\n", serverNodeID, err)
 		return
 	}
 
-	if currentNode == nil {
-		fmt.Fprintf(errOut, "No current node found\n")
-		return
-	}
-
-	if currentNode.Role != types.NodeRoleGateway {
-		fmt.Fprintf(errOut, "Current node is not a server node\n")
-		return
-	}
-
-	err = s.NodesRepository.DeleteServer(serverNodeID)
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get server node: %v\n", err)
-		return
-	}
+	fmt.Fprintf(stdOut, "Server node '%s' removed successfully\n", serverNodeID)
 }
 
 func (s *LocalCommandsService) ServerStart(stdOut io.Writer, errOut io.Writer) {
@@ -719,7 +700,7 @@ func (s *LocalCommandsService) ServerStatus(creds *ssh.Credentials, stdOut io.Wr
 			fmt.Fprintf(stdOut, "   Details: %s\n", containerStatus)
 		}
 
-		fmt.Fprintf(stdOut, "   💡 Run 'wireport server up %s@%s:%d' to install and start wireport server node.\n", creds.Username, creds.Host, creds.Port)
+		fmt.Fprintf(stdOut, "   💡 Run 'wireport server up %s@%s:%d' to bootstrap wireport server and start it.\n", creds.Username, creds.Host, creds.Port)
 	}
 	fmt.Fprintf(stdOut, "\n")
 
@@ -740,14 +721,14 @@ func (s *LocalCommandsService) ServerStatus(creds *ssh.Credentials, stdOut io.Wr
 	}
 	fmt.Fprintf(stdOut, "\n")
 
-	fmt.Fprintf(stdOut, "✨ Status check completed successfully!\n")
+	fmt.Fprintf(stdOut, "✨ Server Status check completed successfully!\n")
 }
 
 func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
 	sshService := ssh.NewService()
 
-	fmt.Fprintf(stdOut, "🚀 wireport Server Connect\n")
-	fmt.Fprintf(stdOut, "=========================\n\n")
+	fmt.Fprintf(stdOut, "🚀 wireport Server Bootstrapping\n")
+	fmt.Fprintf(stdOut, "================================\n\n")
 
 	// SSH Connection
 	fmt.Fprintf(stdOut, "📡 Connecting to server...\n")
@@ -772,14 +753,14 @@ func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer
 	if len(errOutWriter.String()) > 0 || len(stdOutWriter.String()) == 0 {
 		fmt.Fprintf(errOut, "%s\n", errOutWriter.String())
 		fmt.Fprintf(stdOut, "%s\n", stdOutWriter.String())
-		fmt.Fprintf(stdOut, "❌ Failed to connect wireport server to the network\n")
+		fmt.Fprintf(stdOut, "❌ Failed to connect server node to the wireport network\n")
 		return
 	}
 
 	serverJoinToken := stdOutWriter.String()
 
 	// Connection
-	fmt.Fprintf(stdOut, "📦 Connecting wireport server to the network...\n")
+	fmt.Fprintf(stdOut, "📦 Installing wireport server...\n")
 	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
 	_, err = sshService.InstallWireportServer(serverJoinToken)
@@ -803,13 +784,13 @@ func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer
 
 	if installationConfirmed {
 		fmt.Fprintf(stdOut, "   Status: ✅ Verified Successfully, Running\n")
-		fmt.Fprintf(stdOut, "   🎉 wireport server has been successfully connected to the network!\n\n")
+		fmt.Fprintf(stdOut, "   🎉 Server has been successfully installed and connected to the wireport network!\n\n")
 	} else {
 		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
-		fmt.Fprintf(stdOut, "   💡 wireport server container was not found running after connection.\n\n")
+		fmt.Fprintf(stdOut, "   💡 Server node container was not found running after installation, please check the logs on the server node for more details.\n\n")
 	}
 
-	fmt.Fprintf(stdOut, "✨ Server connection process completed!\n")
+	fmt.Fprintf(stdOut, "✨ Server Bootstrapping completed successfully!\n")
 }
 
 func (s *LocalCommandsService) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
@@ -846,8 +827,8 @@ func (s *LocalCommandsService) ServerDown(creds *ssh.Credentials, stdOut io.Writ
 
 	sshService := ssh.NewService()
 
-	fmt.Fprintf(stdOut, "🚀 wireport Server Tearing down\n")
-	fmt.Fprintf(stdOut, "===============================\n\n")
+	fmt.Fprintf(stdOut, "🚀 wireport Server Teardown\n")
+	fmt.Fprintf(stdOut, "===========================\n\n")
 
 	// SSH Connection
 	fmt.Fprintf(stdOut, "📡 Connecting to server...\n")
@@ -879,100 +860,87 @@ func (s *LocalCommandsService) ServerDown(creds *ssh.Credentials, stdOut io.Writ
 	}
 
 	// Teardown wireport server
-	fmt.Fprintf(stdOut, "🛑 Tearing down wireport server...\n")
+	fmt.Fprintf(stdOut, "🛑 Server node Teardown\n")
 	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
 	_, err = sshService.TeardownWireportServer()
 	if err != nil {
-		fmt.Fprintf(stdOut, "   Status: ❌ Tearing down Failed\n")
+		fmt.Fprintf(stdOut, "   Status: ❌ Teardown Failed\n")
 		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
 
-	fmt.Fprintf(stdOut, "   Status: ✅ Tearing down Completed\n\n")
+	fmt.Fprintf(stdOut, "   Status: ✅ Teardown Completed\n\n")
 
-	fmt.Fprintf(stdOut, "✨ Server tearing down process completed!\n")
+	fmt.Fprintf(stdOut, "✨ Server Teardown completed successfully!\n")
 }
 
 func (s *LocalCommandsService) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	serverNodes, err := s.NodesRepository.GetNodesByRole(node_types.NodeRoleServer)
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
 		return
 	}
 
-	switch currentNode.Role {
-	case node_types.NodeRoleGateway:
-		// local execution
-		serverNodes, err := s.NodesRepository.GetNodesByRole(node_types.NodeRoleServer)
+	fmt.Fprintf(stdOut, "SERVER PRIVATE IP\n")
+	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
-			return
-		}
-
-		fmt.Fprintf(stdOut, "SERVER PRIVATE IP\n")
-		fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
-
-		if len(serverNodes) > 0 {
-			for _, serverNode := range serverNodes {
-				if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
-					fmt.Fprintf(stdOut, "%s*\n", serverNode.WGConfig.Interface.Address.String())
-				} else {
-					fmt.Fprintf(stdOut, "%s\n", serverNode.WGConfig.Interface.Address.String())
-				}
+	if len(serverNodes) > 0 {
+		for _, serverNode := range serverNodes {
+			if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
+				fmt.Fprintf(stdOut, "%s*\n", serverNode.WGConfig.Interface.Address.String())
+			} else {
+				fmt.Fprintf(stdOut, "%s\n", serverNode.WGConfig.Interface.Address.String())
 			}
-		} else {
-			fmt.Fprintf(stdOut, "No servers are registered on this gateway\n")
 		}
-
-		return
-	default:
-		fmt.Fprintf(errOut, "Error: Current node is not a client or gateway\n")
-		return
+	} else {
+		fmt.Fprintf(stdOut, "No servers are registered on this gateway.\nUse 'wireport server new' command to create a new server node join request.\n")
 	}
 }
 
-func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, _ io.Writer) {
+	sshService := ssh.NewService()
+
+	fmt.Fprintf(stdOut, "🔄 wireport Server Upgrade\n")
+	fmt.Fprintf(stdOut, "==========================\n\n")
+
+	// SSH Connection
+	fmt.Fprintf(stdOut, "📡 Connecting to server...\n")
+	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
+
+	err := sshService.Connect(creds)
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
 
-	switch currentNode.Role {
-	case types.NodeRoleClient:
-		sshService := ssh.NewService()
+	defer sshService.Close()
+	fmt.Fprintf(stdOut, "   Status: ✅ Connected\n\n")
 
-		err = sshService.Connect(creds)
+	// Upgrade wireport server
+	fmt.Fprintf(stdOut, "🔄 Upgrading wireport server...\n")
+	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to connect to server: %v\n", err)
-			return
-		}
+	success, err := sshService.UpgradeWireportServer()
 
-		defer sshService.Close()
-
-		fmt.Fprintf(stdOut, "Upgrading wireport server node...\n")
-
-		success, err := sshService.UpgradeWireportServer()
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to upgrade wireport server: %v\n", err)
-			return
-		}
-
-		if success {
-			fmt.Fprintf(stdOut, "Wireport server node upgraded successfully\n")
-		} else {
-			fmt.Fprintf(errOut, "Failed to upgrade wireport server\n")
-		}
-	default:
-		fmt.Fprintf(errOut, "Can only upgrade wireport server node from a client node\n")
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
 		return
 	}
+
+	if success {
+		fmt.Fprintf(stdOut, "   Status: ✅ Upgraded Successfully\n")
+		fmt.Fprintf(stdOut, "   🎉 wireport server node has been successfully upgraded!\n\n")
+	} else {
+		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
+		fmt.Fprintf(stdOut, "   💡 Upgrade process completed but may not have been successful.\n\n")
+	}
+
+	fmt.Fprintf(stdOut, "✨ Server Upgrade completed!\n")
 }
 
 // client
@@ -1076,7 +1044,7 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 			}
 
 			if !quietClientCreation {
-				fmt.Fprintf(stdOut, "wireport:\n\nNew client created, use the following join request to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
+				fmt.Fprintf(stdOut, "New client created, use the following command to connect to the network:\n\nwireport join %s\n", *joinRequestBase64)
 			} else {
 				fmt.Fprintf(stdOut, "%s\n", *joinRequestBase64)
 			}
@@ -1127,62 +1095,33 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 }
 
 func (s *LocalCommandsService) ClientList(requestFromNodeID *string, stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	clientNodes, err := s.NodesRepository.GetNodesByRole(types.NodeRoleClient)
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
+		fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
 		return
 	}
 
-	switch currentNode.Role {
-	case node_types.NodeRoleGateway:
-		// local execution
-		clientNodes, err := s.NodesRepository.GetNodesByRole(node_types.NodeRoleClient)
+	fmt.Fprintf(stdOut, "CLIENT PRIVATE IP\n")
+	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
-		if err != nil {
-			fmt.Fprintf(errOut, "Error getting nodes: %v\n", err)
-			return
-		}
-
-		fmt.Fprintf(stdOut, "CLIENT PRIVATE IP\n")
-		fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
-
-		if len(clientNodes) > 0 {
-			for _, clientNode := range clientNodes {
-				if requestFromNodeID != nil && clientNode.ID == *requestFromNodeID {
-					fmt.Fprintf(stdOut, "%s*\n", clientNode.WGConfig.Interface.Address.String())
-				} else {
-					fmt.Fprintf(stdOut, "%s\n", clientNode.WGConfig.Interface.Address.String())
-				}
+	if len(clientNodes) > 0 {
+		for _, clientNode := range clientNodes {
+			if requestFromNodeID != nil && clientNode.ID == *requestFromNodeID {
+				fmt.Fprintf(stdOut, "%s*\n", clientNode.WGConfig.Interface.Address.String())
+			} else {
+				fmt.Fprintf(stdOut, "%s\n", clientNode.WGConfig.Interface.Address.String())
 			}
-		} else {
-			fmt.Fprintf(stdOut, "No clients are registered on this gateway\n")
 		}
-
-		return
-	default:
-		fmt.Fprintf(errOut, "Error: Current node is not a client or gateway\n")
-		return
+	} else {
+		fmt.Fprintf(stdOut, "No clients are registered on this gateway\n")
 	}
 }
 
 // service
 
 func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer, localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot publish services\n")
-		return
-	}
-
-	err = s.PublicServicesRepository.Save(&publicservices.PublicService{
+	err := s.PublicServicesRepository.Save(&publicservices.PublicService{
 		LocalProtocol:  localProtocol,
 		LocalHost:      localHost,
 		LocalPort:      localPort,
@@ -1217,49 +1156,13 @@ func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer
 		return
 	}
 
-	fmt.Fprintf(stdOut, "Service %s://%s:%d is now published on\n\n\t\t%s://%s:%d\n\n", localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+	fmt.Fprintf(stdOut, "✅ Service %s://%s:%d is now published on\n\n\t\t%s://%s:%d\n\n\n", localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 }
 
 func (s *LocalCommandsService) ServiceUnpublish(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	serviceDeleted := s.PublicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
 
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleClient:
-		apiService := APICommandsService{
-			Host:             currentNode.GatewayPublicIP,
-			Port:             currentNode.GatewayPublicPort,
-			ClientCertBundle: currentNode.ClientCertBundle,
-		}
-
-		var execResponseDTO commandstypes.ExecResponseDTO
-
-		execResponseDTO, err = apiService.ServiceUnpublish(publicProtocol, publicHost, publicPort)
-
-		if err != nil {
-			fmt.Fprintf(errOut, "Failed to unpublish service: %v\n", err)
-			return
-		}
-
-		if len(execResponseDTO.Stderr) > 0 {
-			fmt.Fprintf(errOut, "%s\n", execResponseDTO.Stderr)
-		}
-
-		fmt.Fprintf(stdOut, "%s\n", execResponseDTO.Stdout)
-
-		return
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot publish services\n")
-		return
-	}
-
-	unpublished := s.PublicServicesRepository.Delete(publicProtocol, publicHost, publicPort)
-
-	if unpublished {
+	if serviceDeleted {
 		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
@@ -1281,26 +1184,13 @@ func (s *LocalCommandsService) ServiceUnpublish(stdOut io.Writer, errOut io.Writ
 			return
 		}
 
-		fmt.Fprintf(stdOut, "\nService %s://%s:%d is now unpublished\n", publicProtocol, publicHost, publicPort)
+		fmt.Fprintf(stdOut, "✅ Service %s://%s:%d is now unpublished\n", publicProtocol, publicHost, publicPort)
 	} else {
-		fmt.Fprintf(stdOut, "\nService %s://%s:%d was not found or was already unpublished\n", publicProtocol, publicHost, publicPort)
+		fmt.Fprintf(stdOut, "❌ Service %s://%s:%d was not found or was already unpublished earliner\n", publicProtocol, publicHost, publicPort)
 	}
 }
 
-func (s *LocalCommandsService) ServiceList(stdOut io.Writer, errOut io.Writer) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot list services\n")
-		return
-	}
-
+func (s *LocalCommandsService) ServiceList(stdOut io.Writer, _ io.Writer) {
 	services := s.PublicServicesRepository.GetAll()
 
 	fmt.Fprintf(stdOut, "PUBLIC\t->\tLOCAL\n")
@@ -1311,29 +1201,16 @@ func (s *LocalCommandsService) ServiceList(stdOut io.Writer, errOut io.Writer) {
 			fmt.Fprintf(stdOut, "%s://%s:%d\t->\t%s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort, service.LocalProtocol, service.LocalHost, service.LocalPort)
 		}
 	} else {
-		fmt.Fprintf(stdOut, "No services are published on this gateway\n")
+		fmt.Fprintf(stdOut, "No services are published on the gateway.\nUse 'wireport service publish' to publish a new service.\n")
 	}
 }
 
 // service params
 
 func (s *LocalCommandsService) ServiceParamNew(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
+	added := s.PublicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot add service params\n")
-		return
-	}
-
-	updated := s.PublicServicesRepository.AddParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
-
-	if updated {
+	if added {
 		gatewayNode, err := s.NodesRepository.GetGatewayNode()
 
 		if err != nil {
@@ -1355,26 +1232,13 @@ func (s *LocalCommandsService) ServiceParamNew(stdOut io.Writer, errOut io.Write
 			return
 		}
 
-		fmt.Fprintf(stdOut, "Parameter added successfully\n")
+		fmt.Fprintf(stdOut, "✅ Parameter '%s' successfully added to service %s://%s:%d\n", paramValue, publicProtocol, publicHost, publicPort)
 	} else {
-		fmt.Fprintf(stdOut, "Parameter was not added (probably already exists)\n")
+		fmt.Fprintf(stdOut, "❌ Parameter '%s' was not added to service %s://%s:%d (probably already exists)\n", paramValue, publicProtocol, publicHost, publicPort)
 	}
 }
 
 func (s *LocalCommandsService) ServiceParamRemove(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16, paramType publicservices.PublicServiceParamType, paramValue string) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot remove service params\n")
-		return
-	}
-
 	removed := s.PublicServicesRepository.RemoveParam(publicProtocol, publicHost, publicPort, paramType, paramValue)
 
 	if removed {
@@ -1399,26 +1263,13 @@ func (s *LocalCommandsService) ServiceParamRemove(stdOut io.Writer, errOut io.Wr
 			return
 		}
 
-		fmt.Fprintf(stdOut, "Parameter removed successfully\n")
+		fmt.Fprintf(stdOut, "✅ Parameter '%s' successfully removed from service %s://%s:%d\n", paramValue, publicProtocol, publicHost, publicPort)
 	} else {
-		fmt.Fprintf(stdOut, "Parameter was not removed (probably not found)\n")
+		fmt.Fprintf(stdOut, "❌ Parameter '%s' was not removed from service %s://%s:%d (probably not found)\n", paramValue, publicProtocol, publicHost, publicPort)
 	}
 }
 
 func (s *LocalCommandsService) ServiceParamList(stdOut io.Writer, errOut io.Writer, publicProtocol string, publicHost string, publicPort uint16) {
-	currentNode, err := s.NodesRepository.GetCurrentNode()
-
-	if err != nil {
-		fmt.Fprintf(errOut, "Error getting current node: %v\n", err)
-		return
-	}
-
-	switch currentNode.Role {
-	case types.NodeRoleServer:
-		fmt.Fprintf(errOut, "Server node cannot list service params\n")
-		return
-	}
-
 	service, err := s.PublicServicesRepository.Get(publicProtocol, publicHost, publicPort)
 
 	if err != nil {
@@ -1434,7 +1285,7 @@ func (s *LocalCommandsService) ServiceParamList(stdOut io.Writer, errOut io.Writ
 			fmt.Fprintf(stdOut, "%s\n", param.ParamValue)
 		}
 	} else {
-		fmt.Fprintf(stdOut, "No params are set for this service\n")
+		fmt.Fprintf(stdOut, "No params are set for this service\nUse 'wireport service param new' to add a new param.\n")
 	}
 
 	fmt.Fprintf(stdOut, "\n")
