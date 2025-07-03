@@ -2,8 +2,8 @@ package version
 
 var (
 	Version = "dev"
-	Commit  = "dev"
-	Date    = "dev"
-	Arch    = "dev"
-	OS      = "dev"
+	Commit  = "unknown"
+	Date    = "unknown"
+	Arch    = "unknown"
+	OS      = "unknown"
 )

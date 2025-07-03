@@ -56,18 +56,18 @@ func (s *Service) executeCommand(
 		allowedRoles = append(allowedRoles, group.Roles...)
 	}
 
-	// Check if current node is allowed to execute this command
-	if !s.isRoleAllowed(currentNode, allowedRoles) {
-		s.printRoleError(errOut, allowedRoles)
-		return
-	}
-
 	// Determine the role to use for execution
 	var roleToExecute types.NodeRole
 	if currentNode == nil {
 		roleToExecute = types.NodeRoleEmpty
 	} else {
 		roleToExecute = currentNode.Role
+	}
+
+	// Check if current node is allowed to execute this command
+	if !s.isRoleAllowed(currentNode, allowedRoles) {
+		s.printRoleError(roleToExecute, errOut, allowedRoles)
+		return
 	}
 
 	var apiService *APICommandsService
@@ -102,7 +102,7 @@ func (s *Service) executeCommand(
 	}
 
 	// If no handler found, show error
-	s.printRoleError(errOut, allowedRoles)
+	s.printRoleError(roleToExecute, errOut, allowedRoles)
 }
 
 // if the current node role is allowed for the command
@@ -115,12 +115,18 @@ func (s *Service) isRoleAllowed(currentNode *types.Node, allowedRoles []types.No
 }
 
 // standardized role error message
-func (s *Service) printRoleError(errOut io.Writer, allowedRoles []types.NodeRole) {
+func (s *Service) printRoleError(currentNodeRole types.NodeRole, errOut io.Writer, allowedRoles []types.NodeRole) {
 	roleStrings := make([]string, len(allowedRoles))
 	for i, role := range allowedRoles {
 		roleStrings[i] = string(role)
 	}
-	fmt.Fprintf(errOut, "Error: command is only allowed on nodes: %s\n", strings.Join(roleStrings, ", "))
+	fmt.Fprintf(errOut, "❌  Command is only allowed for roles: %s\n", strings.Join(roleStrings, ", "))
+	fmt.Fprintf(errOut, "👤 Current role: %s\n\n", currentNodeRole)
+	fmt.Fprintf(errOut, "To execute this command on behalf of:\n")
+	fmt.Fprintf(errOut, "- client: 'wireport gateway up' OR 'wireport join <client-join-token>'\n")
+	fmt.Fprintf(errOut, "- server: 'wireport gateway up' + 'wireport server up' + SSH to server container\n")
+	fmt.Fprintf(errOut, "- gateway: 'wireport gateway up' + SSH to gateway container\n")
+	fmt.Fprintf(errOut, "- empty: 'wireport gateway down' (WARNING: destroys all data)\n")
 }
 
 // gateway commands
@@ -145,7 +151,7 @@ func (s *Service) GatewayStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.GatewayStatus(creds, stdOut)
 }
 
-func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) GatewayUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -153,7 +159,7 @@ func (s *Service) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.GatewayUp(creds, stdOut, errOut)
+					local.GatewayUp(creds, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},
@@ -193,7 +199,7 @@ func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut i
 	)
 }
 
-func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) GatewayUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -201,7 +207,7 @@ func (s *Service) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOu
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.GatewayUpgrade(creds, stdOut, errOut)
+					local.GatewayUpgrade(creds, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},
@@ -277,7 +283,7 @@ func (s *Service) ServerStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.ServerStatus(creds, stdOut)
 }
 
-func (s *Service) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
+func (s *Service) ServerUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -285,7 +291,7 @@ func (s *Service) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.W
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServerUp(creds, stdOut, errOut, dockerSubnet, s)
+					local.ServerUp(creds, imageTag, stdOut, errOut, dockerSubnet, s)
 					return nil, nil
 				},
 			},
@@ -347,7 +353,7 @@ func (s *Service) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut
 	)
 }
 
-func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -355,7 +361,7 @@ func (s *Service) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, errOut
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServerUpgrade(creds, stdOut, errOut)
+					local.ServerUpgrade(creds, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},

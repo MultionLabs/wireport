@@ -212,7 +212,7 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 	fmt.Fprintf(stdOut, "✨ Gateway Status check completed successfully!\n")
 }
 
-func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
+func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(errOut, "🚀 wireport Gateway Bootstrapping\n")
@@ -253,7 +253,7 @@ func (s *LocalCommandsService) GatewayUp(creds *ssh.Credentials, stdOut io.Write
 	fmt.Fprintf(errOut, "📦 Installing wireport gateway...\n")
 	fmt.Fprintf(errOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	_, clientJoinToken, err := sshService.InstallWireportGateway()
+	_, clientJoinToken, err := sshService.InstallWireportGateway(imageTag)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "   Status: ❌ Installation Failed\n")
@@ -379,7 +379,7 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 	fmt.Fprintf(stdOut, "✨ Gateway Teardown completed successfully!\n")
 }
 
-func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.Writer, _ io.Writer) {
+func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, _ io.Writer) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🔄 wireport Gateway Upgrade\n")
@@ -404,7 +404,7 @@ func (s *LocalCommandsService) GatewayUpgrade(creds *ssh.Credentials, stdOut io.
 	fmt.Fprintf(stdOut, "🔄 Upgrading wireport gateway...\n")
 	fmt.Fprintf(stdOut, "   Gateway: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	success, err := sshService.UpgradeWireportGateway()
+	success, err := sshService.UpgradeWireportGateway(imageTag)
 
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")
@@ -724,7 +724,7 @@ func (s *LocalCommandsService) ServerStatus(creds *ssh.Credentials, stdOut io.Wr
 	fmt.Fprintf(stdOut, "✨ Server Status check completed successfully!\n")
 }
 
-func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
+func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer, dockerSubnet string, commandsService *Service) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🚀 wireport Server Bootstrapping\n")
@@ -763,7 +763,7 @@ func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, stdOut io.Writer
 	fmt.Fprintf(stdOut, "📦 Installing wireport server...\n")
 	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	_, err = sshService.InstallWireportServer(serverJoinToken)
+	_, err = sshService.InstallWireportServer(serverJoinToken, imageTag)
 
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Connection Failed\n")
@@ -899,7 +899,7 @@ func (s *LocalCommandsService) ServerList(requestFromNodeID *string, stdOut io.W
 	}
 }
 
-func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.Writer, _ io.Writer) {
+func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, _ io.Writer) {
 	sshService := ssh.NewService()
 
 	fmt.Fprintf(stdOut, "🔄 wireport Server Upgrade\n")
@@ -924,7 +924,7 @@ func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, stdOut io.W
 	fmt.Fprintf(stdOut, "🔄 Upgrading wireport server...\n")
 	fmt.Fprintf(stdOut, "   Server: %s@%s:%d\n", creds.Username, creds.Host, creds.Port)
 
-	success, err := sshService.UpgradeWireportServer()
+	success, err := sshService.UpgradeWireportServer(imageTag)
 
 	if err != nil {
 		fmt.Fprintf(stdOut, "   Status: ❌ Failed\n")

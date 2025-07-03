@@ -1,15 +1,18 @@
 package commands
 
 import (
+	"fmt"
 	"wireport/internal/routes"
 	"wireport/internal/ssh"
 	"wireport/internal/utils"
+	"wireport/version"
 
 	"github.com/spf13/cobra"
 )
 
 var GatewayStartConfigureOnly = false
 var GatewaySSHKeyPassEmpty = false
+var GatewayDockerImageTag = version.Version
 
 var GatewayCmd = &cobra.Command{
 	Use:   "gateway",
@@ -68,7 +71,7 @@ var UpGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUp(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.GatewayUp(creds, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -80,6 +83,21 @@ var DownGatewayCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var creds *ssh.Credentials
 		var err error
+
+		cmd.Printf("🔴 WARNING: This command will destroy all wireport data and configuration on the gateway node.\nAre you sure you want to continue? (y/n): ")
+
+		var confirm string
+		_, err = fmt.Scanln(&confirm)
+
+		if err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		if confirm != "y" {
+			cmd.PrintErrf("❌ Aborted\n")
+			return
+		}
 
 		if len(args) > 0 {
 			creds, err = buildSSHCredentials(cmd, args, true, false, GatewaySSHKeyPassEmpty)
@@ -107,7 +125,7 @@ var UpgradeGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUpgrade(creds, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.GatewayUpgrade(creds, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -125,10 +143,12 @@ func init() {
 
 	UpGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	UpGatewayCmd.Flags().StringVar(&GatewayDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport gateway container")
 
 	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	DownGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 
 	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpgradeGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	UpgradeGatewayCmd.Flags().StringVar(&GatewayDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport gateway container")
 }
