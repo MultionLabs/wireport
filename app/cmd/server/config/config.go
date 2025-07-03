@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"wireport/internal/logger"
-	"wireport/version"
 
 	"github.com/joho/godotenv"
 )
@@ -49,7 +48,7 @@ func getDefaultDatabasePath(fallback string) string {
 	if homeDir == "" {
 		return fallback
 	}
-	return filepath.Join(homeDir, ".wireport", version.Version, "wireport.db")
+	return filepath.Join(homeDir, ".wireport", "default", "wireport.db")
 }
 
 type Configuration struct {

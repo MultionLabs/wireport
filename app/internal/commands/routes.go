@@ -157,8 +157,8 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 			return types.ServerListResponseDTO{
 				ExecResponseDTO: types.ExecResponseDTO{
-					Stdout: stdOut.String(),
-					Stderr: errOut.String(),
+					Stdout: strings.TrimSpace(stdOut.String()),
+					Stderr: strings.TrimSpace(errOut.String()),
 				},
 				ServerNodesCount: serversCount,
 			}, nil

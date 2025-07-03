@@ -6,4 +6,5 @@ var (
 	Date    = "unknown"
 	Arch    = "unknown"
 	OS      = "unknown"
+	Package = "unknown"
 )

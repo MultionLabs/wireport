@@ -46,7 +46,17 @@
 
 ## Quick Start
 
-Get up and running in just **two commands** (both executed on the client device — personal laptop/PC):
+#### 0. Install suitable version of `wireport` cli on your device:
+
+| Platform | AMD64 | ARM64 |
+|:---------|:------|:------|
+| **macOS** | [wireport-macos-amd64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-amd64.pkg) | [wireport-macos-arm64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-arm64.pkg) |
+| **Linux (.tar)** | [wireport-linux-amd64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.tar) | [wireport-linux-arm64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.tar) |
+| **Linux (.deb)** | [wireport-linux-amd64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.deb) | [wireport-linux-arm64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.deb) |
+| **Linux (.rpm)** | [wireport-linux-amd64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.rpm) | [wireport-linux-arm64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.rpm) |
+| **Windows** | [wireport-windows-amd64.exe](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-amd64.exe) | [wireport-windows-arm64.exe](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-arm64.exe) |
+
+Get wireport up and running in just **two commands** (both executed on the client device — personal laptop/PC):
 
 #### 1. Bootstrap a GATEWAY node and dump client WireGuard config to a file
 
