@@ -54,7 +54,7 @@
 | **Linux (.tar)** | [wireport-linux-amd64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.tar) | [wireport-linux-arm64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.tar) |
 | **Linux (.deb)** | [wireport-linux-amd64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.deb) | [wireport-linux-arm64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.deb) |
 | **Linux (.rpm)** | [wireport-linux-amd64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.rpm) | [wireport-linux-arm64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.rpm) |
-| **Windows** | [wireport-windows-amd64.exe](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-amd64.exe) | [wireport-windows-arm64.exe](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-arm64.exe) |
+| **Windows** | [wireport-windows-amd64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-amd64.zip) | [wireport-windows-arm64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-arm64.zip) |
 
 Get wireport up and running in just **two commands** (both executed on the client device — personal laptop/PC):
 
