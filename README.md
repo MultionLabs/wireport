@@ -50,7 +50,8 @@
 
 | Platform | AMD64 | ARM64 |
 |:---------|:------|:------|
-| **macOS** | [wireport-macos-amd64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-amd64.pkg) | [wireport-macos-arm64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-arm64.pkg) |
+| **macOS (.pkg)** | [wireport-macos-amd64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-amd64.pkg) | [wireport-macos-arm64.pkg](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-arm64.pkg) |
+| **macOS (.zip)** | [wireport-macos-amd64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-amd64.zip) | [wireport-macos-arm64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-macos-arm64.zip) |
 | **Linux (.tar)** | [wireport-linux-amd64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.tar) | [wireport-linux-arm64.tar](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.tar) |
 | **Linux (.deb)** | [wireport-linux-amd64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.deb) | [wireport-linux-arm64.deb](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.deb) |
 | **Linux (.rpm)** | [wireport-linux-amd64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.rpm) | [wireport-linux-arm64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.rpm) |

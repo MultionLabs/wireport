@@ -67,13 +67,13 @@ build-rpm: build-binaries
 			-p $(OUT_PATH)/$(PKG_NAME)-rpm-$(arch).rpm \
 			$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME);)
 
-build-macos: PACKAGE=pkg
-build-macos:
+build-macos-pkg: PACKAGE=pkg
+build-macos-pkg:
 	@mkdir -p $(BIN_PATH)
 	@$(foreach arch,$(ARCHS), \
 		$(call build_binary_cmd,darwin,$(arch)))
 	@mkdir -p $(OUT_PATH)
-	@echo "Building macOS packages..."
+	@echo "Packaging into PKG..."
 	@$(foreach arch,$(ARCHS), \
 		echo "  Packaging darwin-$(arch)..."; \
 		fpm -s dir -t osxpkg -n $(PKG_NAME) -v $(VERSION) -a $(arch) \
@@ -86,13 +86,24 @@ build-macos:
 			-p $(OUT_PATH)/$(PKG_NAME)-macos-$(arch).pkg \
 			$(BIN_PATH)/$(PKG_NAME)-darwin-$(arch)=/usr/local/bin/$(PKG_NAME);)
 
-build-windows: PACKAGE=zip
-build-windows:
+build-macos-zip: PACKAGE=zip
+build-macos-zip:
+	@mkdir -p $(BIN_PATH)
+	@$(foreach arch,$(ARCHS), \
+		$(call build_binary_cmd,darwin,$(arch)))
+	@mkdir -p $(OUT_PATH)
+	@echo "Packaging into ZIP..."
+	@$(foreach arch,$(ARCHS), \
+		echo "  Packaging darwin-$(arch)..."; \
+		zip -j $(OUT_PATH)/$(PKG_NAME)-macos-$(arch).zip $(BIN_PATH)/$(PKG_NAME)-darwin-$(arch);)
+
+build-windows-zip: PACKAGE=zip
+build-windows-zip:
 	@mkdir -p $(BIN_PATH)
 	@$(foreach arch,$(ARCHS), \
 		$(call build_binary_cmd,windows,$(arch)))
 	@mkdir -p $(OUT_PATH)
-	@echo "Building Windows packages..."
+	@echo "Packaging into ZIP..."
 	@$(foreach arch,$(ARCHS), \
 		echo "  Packaging windows-$(arch)..."; \
 		zip -j $(OUT_PATH)/$(PKG_NAME)-windows-$(arch).zip $(BIN_PATH)/$(PKG_NAME)-windows-$(arch).exe;)
@@ -171,7 +182,11 @@ build-tar-docker:
 				-p $(OUT_PATH)/$(PKG_NAME)-linux-$(arch).tar \
 				$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME)";)
 
-build-pkgs: build-macos build-windows build-deb-docker build-rpm-docker build-tar-docker
+build-pkgs: build-macos-pkg build-macos-zip build-windows-zip build-deb-docker build-rpm-docker build-tar-docker
+
+docker-build-push:
+	@echo "Building and pushing Docker image..."
+	docker buildx build --platform=linux/amd64,linux/arm64 -t anybotsllc/wireport:$(VERSION) . && docker push anybotsllc/wireport:$(VERSION)
 
 clean:
 	@echo "Cleaning build artifacts..."
