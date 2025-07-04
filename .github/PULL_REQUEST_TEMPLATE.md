@@ -25,12 +25,9 @@ Related to #(issue number)
 <!-- List the main changes made -->
 
 - [Change 1]
-- [Change 2]
-- [Change 3]
-
-### Breaking Changes
-
-<!-- If this PR includes breaking changes, describe them here -->
+- [API: Change 2]
+- [CLI: Change 3]
+- [BREAKING: Change 4]
 
 ## 📸 Screenshots
 
