@@ -11,7 +11,7 @@ PACKAGE ?= unknown
 
 # Package metadata
 PKG_DESCRIPTION := wireport - ingress proxy and VPN tunnel
-PKG_MAINTAINER := MultionLabs <team@multionlabs.com>
+PKG_MAINTAINER := MultionLabs <support@multionlabs.com>
 PKG_VENDOR := MultionLabs
 PKG_HOMEPAGE := https://github.com/MultionLabs/wireport
 
