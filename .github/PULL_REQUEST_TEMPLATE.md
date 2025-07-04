@@ -17,17 +17,10 @@
 
 ### 🔗 Related Issues
 
-<!-- Link to any related issues -->
 Closes #(issue number)  
 Related to #(issue number)
 
-## 🔍 Code Changes
-
-### Summary
-
-<!-- Provide a brief summary of the code changes -->
-
-### Key Changes
+## 🔍 Changes
 
 <!-- List the main changes made -->
 
@@ -118,3 +111,4 @@ Related to #(issue number)
 - [ ] Performance impact is acceptable
 - [ ] Breaking changes are clearly documented
 - [ ] Commit messages follow conventional commits format
+
