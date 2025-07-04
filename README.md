@@ -15,11 +15,22 @@
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#security-considerations">Security</a> •
-  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="#troubleshooting">Troubleshooting</a> •
+  <a href="#sponsorship">Sponsorship<a>
 </p>
 
 ---
 
+<div align="center">
+
+[![Sponsor me on GitHub](https://img.shields.io/badge/Sponsor-💖-pink?style=for-the-badge)](https://github.com/sponsors/maxskorr)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
+[![Architecture](https://img.shields.io/badge/Architecture-AMD64%20%7C%20ARM64-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
+
+</div>
+
+---
 
 **wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private local and Docker-based services to the Internet, with free, automatically renewable SSL certificates. Powered by WireGuard (secure networking), CoreDNS and Caddy (performant reverse proxy).
 
@@ -295,6 +306,10 @@ If you encounter issues:
 3. Check status of the WireGuard network inside the GATEWAY and SERVER wireport containers using `wg show` and other WireGuard commands
 4. Check pingability of private services from inside GATEWAY, SERVER and CLIENT nodes
 5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to the `wireport-net` Docker network (wireport agent manages this automatically).
+
+## Sponsorship
+
+If you find this project useful, please consider [sponsoring the development via GitHub](https://github.com/sponsors/maxskorr). Thank you!
 
 ## License
 
