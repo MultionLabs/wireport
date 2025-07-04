@@ -66,7 +66,7 @@ scoop install wireport
 
 or
 
-**from binaries**
+**from binaries (Linux, macOS, Windows)**
 
 <details>
 <summary>Links to binaries (Linux, macOS, Windows)</summary>
