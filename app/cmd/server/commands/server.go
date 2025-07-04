@@ -14,6 +14,7 @@ var quietServerCreation = false
 var dockerSubnet = ""
 var ServerSSHKeyPassEmpty = false
 var ServerDockerImageTag = version.Version
+var forceServerTeardown = false
 
 var ServerCmd = &cobra.Command{
 	Use:   "server",
@@ -93,19 +94,21 @@ var DownServerCmd = &cobra.Command{
 		var creds *ssh.Credentials
 		var err error
 
-		cmd.Printf("🔴 WARNING: This command will destroy all wireport data and configuration on the server node.\nAre you sure you want to continue? (y/n): ")
+		if !forceServerTeardown {
+			cmd.Printf("🔴 WARNING: This command will destroy all wireport data and configuration on the server node.\nAre you sure you want to continue? (y/n): ")
 
-		var confirm string
-		_, err = fmt.Scanln(&confirm)
+			var confirm string
+			_, err = fmt.Scanln(&confirm)
 
-		if err != nil {
-			cmd.PrintErrf("❌ Error: %v\n", err)
-			return
-		}
+			if err != nil {
+				cmd.PrintErrf("❌ Error: %v\n", err)
+				return
+			}
 
-		if confirm != "y" {
-			cmd.PrintErrf("❌ Aborted\n")
-			return
+			if confirm != "y" {
+				cmd.PrintErrf("❌ Aborted\n")
+				return
+			}
 		}
 
 		if len(args) > 0 {
@@ -171,6 +174,7 @@ func init() {
 
 	DownServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	DownServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	DownServerCmd.Flags().BoolVarP(&forceServerTeardown, "force", "f", false, "Force the teardown of the server node, bypassing the confirmation prompt")
 
 	UpgradeServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpgradeServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")

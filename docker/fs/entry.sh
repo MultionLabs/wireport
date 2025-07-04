@@ -37,7 +37,7 @@ elif [ "$1" = "server" ]; then
     elif [ "$2" = "down" ]; then
         echo "> Tearing down wireport server"
 
-        wireport server down
+        wireport server down -f
         exit 0
     else
         echo "Invalid command. Use 'start' or 'down'."

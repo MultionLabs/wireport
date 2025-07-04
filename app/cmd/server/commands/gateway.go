@@ -13,6 +13,7 @@ import (
 var GatewayStartConfigureOnly = false
 var GatewaySSHKeyPassEmpty = false
 var GatewayDockerImageTag = version.Version
+var forceGatewayTeardown = false
 
 var GatewayCmd = &cobra.Command{
 	Use:   "gateway",
@@ -84,19 +85,21 @@ var DownGatewayCmd = &cobra.Command{
 		var creds *ssh.Credentials
 		var err error
 
-		cmd.Printf("🔴 WARNING: This command will destroy all wireport data and configuration on the gateway node.\nAre you sure you want to continue? (y/n): ")
+		if !forceGatewayTeardown {
+			cmd.Printf("🔴 WARNING: This command will destroy all wireport data and configuration on the gateway node.\nAre you sure you want to continue? (y/n): ")
 
-		var confirm string
-		_, err = fmt.Scanln(&confirm)
+			var confirm string
+			_, err = fmt.Scanln(&confirm)
 
-		if err != nil {
-			cmd.PrintErrf("❌ Error: %v\n", err)
-			return
-		}
+			if err != nil {
+				cmd.PrintErrf("❌ Error: %v\n", err)
+				return
+			}
 
-		if confirm != "y" {
-			cmd.PrintErrf("❌ Aborted\n")
-			return
+			if confirm != "y" {
+				cmd.PrintErrf("❌ Aborted\n")
+				return
+			}
 		}
 
 		if len(args) > 0 {
@@ -147,6 +150,7 @@ func init() {
 
 	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	DownGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	DownGatewayCmd.Flags().BoolVarP(&forceGatewayTeardown, "force", "f", false, "Force the teardown of the gateway node, bypassing the confirmation prompt")
 
 	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpgradeGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")

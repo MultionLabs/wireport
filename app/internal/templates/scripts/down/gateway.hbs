@@ -1,5 +1,5 @@
 docker exec {{ wireportGatewayContainerName }} sh -c 'for svc in /etc/service/*; do sv down "$svc"; done'  && \
-docker exec {{ wireportGatewayContainerName }} wireport gateway down && \
+docker exec {{ wireportGatewayContainerName }} wireport gateway down -f && \
 docker exec {{ wireportGatewayContainerName }} sh -c 'rm -rf /app/wireport/*' && \
 docker stop {{ wireportGatewayContainerName }} && \
 docker rm {{ wireportGatewayContainerName }} && \
