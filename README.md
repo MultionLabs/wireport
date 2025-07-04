@@ -57,6 +57,15 @@ brew install MultionLabs/wireport/wireport
 
 or
 
+**via scoop (Windows)**
+
+```bash
+scoop bucket add wireport https://github.com/MultionLabs/scoop-wireport
+scoop install wireport
+```
+
+or
+
 **from binaries**
 
 <details>
