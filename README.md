@@ -151,7 +151,7 @@ Alternatively, you can allow the app through **System Preferences**:
 
 ## Quick Start
 
-You're two commands away from exposing your first local service to the Internet!
+You're **two commands** away from exposing your first service **from your local machine to the Internet**!
 
 #### 1. Bootstrap a GATEWAY node
 
