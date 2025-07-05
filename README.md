@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#security-considerations">Security</a> •
   <a href="#troubleshooting">Troubleshooting</a> •
@@ -53,11 +54,15 @@
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
-![wireport general scheme](assets/wireport-general-scheme.png)
+| ![wireport - ingress proxy and VPN tunnel](assets/wireport-ingress-proxy-vpn-tunnel.png) |
+|:--:|
+| *wireport - ingress proxy and VPN tunnel* |
 
-## Quick Start
+| ![wireport - docker service discovery by container name](assets/wireport-docker-service-discovery.png) |
+|:--:|
+| *wireport - docker service discovery by container name* |
 
-#### 0. Install `wireport` CLI on your device:
+## Installation
 
 
 **via Homebrew (macOS, Linux)**
@@ -144,10 +149,13 @@ Alternatively, you can allow the app through **System Preferences**:
 
 </details>
 
+## Quick Start
 
-Then, publish your first local service to the Internet **in a few commands** (both executed on the client device — personal laptop/PC):
+You're two commands away from exposing your first local service to the Internet!
 
 #### 1. Bootstrap a GATEWAY node
+
+Run in your local terminal:
 
 ```bash
 wireport gateway up sshuser@140.120.110.10:22
@@ -246,6 +254,8 @@ wireport relies on [goph](https://github.com/melbahja/goph) for handling SSH con
 </details>
 
 #### 2. Expose a local service to the Internet
+
+Run in your local terminal:
 
 ```bash
 wireport service publish \
