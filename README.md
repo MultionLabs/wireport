@@ -52,7 +52,7 @@
 ## Key Concepts
 
 - **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
-- **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
+- **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services from their local machines to the Internet.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
 | ![wireport - ingress proxy and VPN tunnel](assets/wireport-ingress-proxy-vpn-tunnel.png) |
@@ -264,7 +264,7 @@ wireport service publish \
   --public https://demo.example.com:443
 ```
 
-🎉 Congratulations! Your local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
+🎉 **Congratulations!** Your local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
 
 <details>
 <summary>Command and flags explained</summary>
