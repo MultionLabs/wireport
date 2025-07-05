@@ -17,7 +17,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#security-considerations">Security</a> •
   <a href="#troubleshooting">Troubleshooting</a> •
-  <a href="#sponsorship">Sponsorship<a>
+  <a href="#sponsorship">Sponsorship</a>
 </p>
 
 ---
@@ -135,7 +135,7 @@ To allow it:
 
 Alternatively, you can allow the app through **System Preferences**:
 
-1. Open **Apple Menu > System Preferences > Security & Privacy > General**.
+1. Open **Apple Menu > System Settings > Privacy & Security > General**.
 2. You will see a message that the app was blocked.
 3. Click **Allow Anyway**.
 4. Then, try opening the app again.
@@ -244,7 +244,7 @@ sudo ufw enable
 ```
 
 2) Docker is installed on the target GATEWAY machine
-3) The account used for SSH-ing into the target GATEWAY machine has all the necessary permissions for managing Docker containers, images, and networks
+3) The account used for SSHing into the target GATEWAY machine has all the necessary permissions for managing Docker containers, images, and networks
 </details>
 
 <details>
@@ -262,6 +262,8 @@ wireport service publish \
   --local  http://10.0.0.2:3000 \
   --public https://demo.example.com:443
 ```
+
+🎉 Congratulations! Your local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
 
 <details>
 <summary>Command and flags explained</summary>
