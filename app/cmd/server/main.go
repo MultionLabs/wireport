@@ -54,7 +54,7 @@ If the installation process fails, or the service is not accessible over the Int
 
 If this does not help, check the logs of the wireport docker container on gateway.
 `,
-	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s, package: %s); db path: %s", version.Version, version.Commit, version.Date, version.Arch, version.OS, version.Package, config.DatabasePath),
+	Version: fmt.Sprintf("%s (commit: %s, date: %s, arch: %s, os: %s, package: %s); db path: %s; profile: %s", version.Version, version.Commit, version.Date, version.Arch, version.OS, version.Package, config.DatabasePath, config.WireportProfile),
 }
 
 func main() {
