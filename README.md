@@ -25,7 +25,7 @@
 <div align="center">
 
 [![Sponsor me on GitHub](https://img.shields.io/badge/Sponsor-💖-pink?style=for-the-badge)](https://github.com/sponsors/maxskorr)  
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
 [![Architecture](https://img.shields.io/badge/Architecture-AMD64%20%7C%20ARM64-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
 
