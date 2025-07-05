@@ -44,10 +44,10 @@
 - **Reverse proxy** with support for HTTP(S) and TCP/UDP (Layer-4) (Caddy)
 - **Secure VPN tunneling** (WireGuard)
 - Automatic **service discovery and hostname resolution by Docker container names** (CoreDNS)
-- **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64) for [**quick and easy setup**](#quick-start)
+- **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
-- **No need to manually edit countless configuration files**: [quick and easy start](#quick-start) from the command line in just **two commands**
+- **No manual configuration**: [quick and easy start](#quick-start) in just **two commands**
 
 ## Key Concepts
 
