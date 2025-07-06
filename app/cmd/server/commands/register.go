@@ -3,6 +3,7 @@ package commands
 import (
 	"wireport/internal/commands"
 	"wireport/internal/joinrequests"
+	"wireport/internal/jointokens"
 	"wireport/internal/nodes"
 	"wireport/internal/publicservices"
 
@@ -15,6 +16,7 @@ var (
 	nodesRepository          *nodes.Repository
 	joinRequestsRepository   *joinrequests.Repository
 	publicServicesRepository *publicservices.Repository
+	joinTokensRepository     *jointokens.Repository
 	commandsService          *commands.Service
 )
 
@@ -23,11 +25,13 @@ func RegisterCommands(rootCmd *cobra.Command, db *gorm.DB) {
 	nodesRepository = nodes.NewRepository(db)
 	joinRequestsRepository = joinrequests.NewRepository(db)
 	publicServicesRepository = publicservices.NewRepository(db)
+	joinTokensRepository = jointokens.NewRepository(db)
 	commandsService = &commands.Service{
 		LocalCommandsService: commands.LocalCommandsService{
 			NodesRepository:          nodesRepository,
 			PublicServicesRepository: publicServicesRepository,
 			JoinRequestsRepository:   joinRequestsRepository,
+			JoinTokensRepository:     joinTokensRepository,
 		},
 		NodesRepository:          nodesRepository,
 		PublicServicesRepository: publicServicesRepository,

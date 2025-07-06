@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"wireport/cmd/server/config"
 	join_requests_types "wireport/internal/joinrequests/types"
+	"wireport/internal/jointokens"
 	"wireport/internal/nodes/types"
 	"wireport/internal/publicservices"
 
@@ -31,7 +32,7 @@ func InitDB() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	err = db.AutoMigrate(&types.Node{}, &join_requests_types.JoinRequest{}, &publicservices.PublicService{})
+	err = db.AutoMigrate(&types.Node{}, &join_requests_types.JoinRequest{}, &publicservices.PublicService{}, &jointokens.JoinToken{})
 
 	if err != nil {
 		return nil, err

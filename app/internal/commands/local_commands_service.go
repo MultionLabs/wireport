@@ -14,6 +14,7 @@ import (
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/joinrequests"
 	joinrequeststypes "wireport/internal/joinrequests/types"
+	"wireport/internal/jointokens"
 	"wireport/internal/networkapps"
 	nodes "wireport/internal/nodes"
 	"wireport/internal/nodes/types"
@@ -28,6 +29,7 @@ type LocalCommandsService struct {
 	NodesRepository          *nodes.Repository
 	PublicServicesRepository *publicservices.Repository
 	JoinRequestsRepository   *joinrequests.Repository
+	JoinTokensRepository     *jointokens.Repository
 }
 
 // gateway
@@ -563,18 +565,8 @@ func (s *LocalCommandsService) ServerStart(stdOut io.Writer, errOut io.Writer) {
 
 	currentNode, err := s.NodesRepository.GetCurrentNode()
 
-	if err != nil {
+	if err != nil || currentNode == nil {
 		fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
-		return
-	}
-
-	if currentNode == nil {
-		fmt.Fprintf(errOut, "No current node found\n")
-		return
-	}
-
-	if currentNode.Role != types.NodeRoleServer {
-		fmt.Fprintf(errOut, "Current node is not a server node\n")
 		return
 	}
 
@@ -1283,14 +1275,14 @@ func (s *LocalCommandsService) ServiceParamList(stdOut io.Writer, errOut io.Writ
 
 // join
 
-func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToken string) {
+func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToken string) bool {
 	joinRequest := &joinrequeststypes.JoinRequest{}
 
 	err := joinRequest.FromBase64(joinToken)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to parse join request: %v\n", err)
-		return
+		return false
 	}
 
 	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
@@ -1299,14 +1291,14 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
-		return
+		return false
 	}
 
 	currentNode := response.NodeConfig
 
 	if currentNode == nil {
 		fmt.Fprintf(errOut, "Failed to get node config from join response\n")
-		return
+		return false
 	}
 
 	currentNode.IsCurrentNode = true
@@ -1315,7 +1307,7 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to save node config: %v\n", err)
-		return
+		return false
 	}
 
 	switch currentNode.Role {
@@ -1324,21 +1316,21 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 		if currentNode.DockerSubnet == nil {
 			fmt.Fprintf(errOut, "Failed to get docker subnet from node config\n")
-			return
+			return false
 		}
 
 		dockerSubnet, err := types.ParseIPNetMarshable(currentNode.DockerSubnet.String(), true)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to parse docker subnet: %v\n", err)
-			return
+			return false
 		}
 
 		err = dockerutils.EnsureDockerNetworkExistsAndAttached(dockerSubnet)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to ensure docker network %s with subnet %s exists and is attached: %v\n", config.Config.DockerNetworkName, dockerSubnet.String(), err)
-			return
+			return false
 		}
 
 		publicServices := []*publicservices.PublicService{}
@@ -1347,7 +1339,7 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to save node configs: %v\n", err)
-			return
+			return false
 		}
 
 		fmt.Fprintf(stdOut, "Successfully saved node config to the database\n")
@@ -1356,13 +1348,15 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to get wireguard config: %v\n", err)
-			return
+			return false
 		}
 
 		fmt.Fprintf(stdOut, "\n%s\n", *wireguardConfig)
 		fmt.Fprintf(errOut, "\n⤵ wireport WireGuard config has been dumped\n\n")
 	default:
 		fmt.Fprintf(errOut, "Invalid node role: %s\n", currentNode.Role)
-		return
+		return false
 	}
+
+	return true
 }

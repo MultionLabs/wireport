@@ -27,8 +27,8 @@ func NewAPIService(clientCertBundle *mtls.FullClientBundle) *APIService {
 
 	// Create a dialer with timeout and fallback DNS resolution
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second, // Connection timeout
-		KeepAlive: 30 * time.Second, // Keep-alive timeout
+		Timeout:   10 * time.Second, // Connection timeout
+		KeepAlive: 10 * time.Second, // Keep-alive timeout
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -70,7 +70,7 @@ func NewAPIService(clientCertBundle *mtls.FullClientBundle) *APIService {
 		DialContext:           dialer.DialContext,
 		TLSClientConfig:       tlsConfig,
 		MaxIdleConns:          10,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
@@ -78,7 +78,7 @@ func NewAPIService(clientCertBundle *mtls.FullClientBundle) *APIService {
 	return &APIService{
 		client: &http.Client{
 			Transport: transport,
-			Timeout:   60 * time.Second, // Overall request timeout
+			Timeout:   30 * time.Second, // Overall request timeout
 		},
 		clientCertBundle: clientCertBundle,
 	}

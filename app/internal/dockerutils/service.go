@@ -156,10 +156,20 @@ func EnsureDockerNetworkIsAttachedToAllContainers() error {
 	}
 
 	for _, container := range containers {
+		// Skip containers that are already connected to the target network to avoid conflicts
+		if container.NetworkSettings != nil {
+			if _, ok := container.NetworkSettings.Networks[config.Config.DockerNetworkName]; ok {
+				continue
+			}
+		}
+
 		err = cli.NetworkConnect(context.Background(), config.Config.DockerNetworkName, container.ID, &network.EndpointSettings{})
 
 		if err != nil {
-			if errdefs.IsConflict(err) || errdefs.IsForbidden(err) {
+			// If Docker reports that connecting the network would create an IP / route conflict we simply skip this container and continue with the others.
+			if strings.Contains(err.Error(), "conflicts with existing route") ||
+				strings.Contains(err.Error(), "cannot program address") ||
+				errdefs.IsConflict(err) || errdefs.IsForbidden(err) {
 				continue
 			}
 

@@ -26,7 +26,7 @@ elif [ "$1" = "join" ]; then
     mv /etc/service/wireport-gateway /etc/service-disabled/
     mv /etc/service/iptables-gateway /etc/service-disabled/
     
-    wireport join "$2"
+    wireport join "$2" --postponed
 elif [ "$1" = "server" ]; then
     if [ "$2" = "start" ]; then
         echo "> Starting wireport server"
