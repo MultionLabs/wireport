@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"time"
 	"wireport/internal/commands/types"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
@@ -39,10 +41,24 @@ func makeSecureRequestWithResponse[RequestType any, ResponseType any](api *APICo
 
 	httpRequest.Header.Set("Content-Type", "application/json")
 
+	// Create a dialer with timeout
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second, // Connection timeout
+		KeepAlive: 30 * time.Second, // Keep-alive timeout
+	}
+
+	transport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		TLSClientConfig:       tlsConfig,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
 	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
+		Transport: transport,
+		Timeout:   60 * time.Second, // Overall request timeout
 	}
 
 	httpResponse, err := client.Do(httpRequest)

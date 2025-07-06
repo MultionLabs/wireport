@@ -526,12 +526,7 @@ func (s *LocalCommandsService) ServerNew(forceServerCreation bool, quietServerCr
 		return
 	}
 
-	joinRequest, err := s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
-		UDPAddr: net.UDPAddr{
-			IP:   net.ParseIP(*gatewayNode.WGPublicIP),
-			Port: int(config.Config.ControlServerPort),
-		},
-	}, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
+	joinRequest, err := s.JoinRequestsRepository.Create(joinRequestID, *gatewayNode.WGPublicIP, config.Config.ControlServerPort, dockerSubnetPtr, types.NodeRoleServer, clientCertBundle)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
@@ -1022,12 +1017,7 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 
 			var joinRequest *joinrequeststypes.JoinRequest
 
-			joinRequest, err = s.JoinRequestsRepository.Create(joinRequestID, types.UDPAddrMarshable{
-				UDPAddr: net.UDPAddr{
-					IP:   net.ParseIP(*currentNode.WGPublicIP),
-					Port: int(config.Config.ControlServerPort),
-				},
-			}, nil, types.NodeRoleClient, clientCertBundle)
+			joinRequest, err = s.JoinRequestsRepository.Create(joinRequestID, *currentNode.WGPublicIP, config.Config.ControlServerPort, nil, types.NodeRoleClient, clientCertBundle)
 
 			if err != nil {
 				fmt.Fprintf(errOut, "Failed to create join request: %v\n", err)
@@ -1305,7 +1295,7 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 
 	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
 
-	response, err := joinRequestsService.Join(joinToken, joinRequest)
+	response, err := joinRequestsService.Join(joinToken, fmt.Sprintf("%s:%d", joinRequest.GatewayHost, joinRequest.GatewayPort))
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)

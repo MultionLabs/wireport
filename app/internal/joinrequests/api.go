@@ -13,7 +13,6 @@ import (
 	"time"
 	"wireport/internal/commands/types"
 	"wireport/internal/encryption/mtls"
-	joinrequeststypes "wireport/internal/joinrequests/types"
 )
 
 type APIService struct {
@@ -23,20 +22,40 @@ type APIService struct {
 
 func NewAPIService(clientCertBundle *mtls.FullClientBundle) *APIService {
 	var (
-		dnsResolverAddress = "8.8.8.8:53"
-		dnsResolverProto   = "udp"
-		dnsResolverTimeout = time.Duration(5 * time.Second)
+		dnsResolverTimeout = time.Duration(10 * time.Second)
 	)
 
+	// Create a dialer with timeout and fallback DNS resolution
 	dialer := &net.Dialer{
+		Timeout:   30 * time.Second, // Connection timeout
+		KeepAlive: 30 * time.Second, // Keep-alive timeout
 		Resolver: &net.Resolver{
 			PreferGo: true,
-			Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				// Try multiple DNS servers for better reliability
+				dnsServers := []string{
+					"8.8.8.8:53",        // Google DNS
+					"1.1.1.1:53",        // Cloudflare DNS
+					"208.67.222.222:53", // OpenDNS
+				}
+
+				for _, dnsServer := range dnsServers {
+					d := net.Dialer{
+						Timeout: dnsResolverTimeout,
+					}
+
+					conn, err := d.DialContext(ctx, "udp", dnsServer)
+					if err == nil {
+						return conn, nil
+					}
+
+				}
+
+				// Fallback to system default DNS
 				d := net.Dialer{
 					Timeout: dnsResolverTimeout,
 				}
-
-				return d.DialContext(ctx, dnsResolverProto, dnsResolverAddress)
+				return d.DialContext(ctx, network, address)
 			},
 		},
 	}
@@ -48,31 +67,37 @@ func NewAPIService(clientCertBundle *mtls.FullClientBundle) *APIService {
 	}
 
 	transport := &http.Transport{
-		DialContext:     dialer.DialContext,
-		TLSClientConfig: tlsConfig,
+		DialContext:           dialer.DialContext,
+		TLSClientConfig:       tlsConfig,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	return &APIService{
 		client: &http.Client{
 			Transport: transport,
+			Timeout:   60 * time.Second, // Overall request timeout
 		},
 		clientCertBundle: clientCertBundle,
 	}
 }
 
-func (s *APIService) Join(joinToken string, joinRequest *joinrequeststypes.JoinRequest) (*types.JoinResponseDTO, error) {
+func (s *APIService) Join(joinToken string, gatewayAddress string) (*types.JoinResponseDTO, error) {
 	payload := types.JoinRequestDTO{
 		JoinToken: joinToken,
 	}
 
-	url := fmt.Sprintf("https://%s/commands/join", joinRequest.GatewayAddress)
+	url := fmt.Sprintf("https://%s/commands/join", gatewayAddress)
 
 	const (
 		maxRetries = 5
-		baseDelay  = 1 * time.Second
-		maxDelay   = 10 * time.Second
+		baseDelay  = 1 * time.Second  // start with 1s backoff
+		maxDelay   = 10 * time.Second // cap individual wait at 10s
 	)
 
+	firstAttemptAt := time.Now()
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		requestPayloadJSON, err := json.Marshal(payload)
@@ -140,7 +165,7 @@ func (s *APIService) Join(joinToken string, joinRequest *joinrequeststypes.JoinR
 		return &joinResponse, nil
 	}
 
-	return nil, fmt.Errorf("failed to join after %d attempts, last error: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("failed to join after %d attempts, first attempt at %v, now %v, last error: %w", maxRetries, firstAttemptAt, time.Now(), lastErr)
 }
 
 func calculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
@@ -170,6 +195,12 @@ func isRetryableError(err error) bool {
 	// Also check for context deadline exceeded (timeout)
 	var deadlineErr interface{ Timeout() bool }
 	if ok := errors.As(err, &deadlineErr); ok && deadlineErr.Timeout() {
+		return true
+	}
+
+	// Also treat DNS errors (e.g., "no such host") as retryable because they may be transient
+	var dnsErr *net.DNSError
+	if ok := errors.As(err, &dnsErr); ok {
 		return true
 	}
 

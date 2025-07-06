@@ -21,7 +21,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	}
 }
 
-func (r *Repository) Create(id string, gatewayAddress nodeTypes.UDPAddrMarshable, dockerSubnet *string, role nodeTypes.NodeRole, clientCertBundle *mtls.FullClientBundle) (*types.JoinRequest, error) {
+func (r *Repository) Create(id string, gatewayHost string, gatewayPort uint16, dockerSubnet *string, role nodeTypes.NodeRole, clientCertBundle *mtls.FullClientBundle) (*types.JoinRequest, error) {
 	encryptionKey, err := encryption_aes.GenerateAESKey()
 
 	if err != nil {
@@ -34,7 +34,8 @@ func (r *Repository) Create(id string, gatewayAddress nodeTypes.UDPAddrMarshable
 		ID:                  id,
 		EncryptionKeyBase64: encryptionKeyBase64,
 		ClientCertBundle:    *clientCertBundle,
-		GatewayAddress:      gatewayAddress.String(),
+		GatewayHost:         gatewayHost,
+		GatewayPort:         gatewayPort,
 		Role:                role,
 		CreatedAt:           time.Now(),
 		DockerSubnet:        dockerSubnet,

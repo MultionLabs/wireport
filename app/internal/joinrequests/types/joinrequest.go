@@ -13,7 +13,8 @@ type JoinRequest struct {
 	EncryptionKeyBase64 string                `gorm:"type:text" json:"key"`
 	ClientCertBundle    mtls.FullClientBundle `gorm:"type:text;serializer:json" json:"clientCertBundle"`
 	DockerSubnet        *string               `gorm:"type:text" json:"dockerSubnet"`
-	GatewayAddress      string                `gorm:"type:text" json:"gateway"`
+	GatewayHost         string                `gorm:"type:text" json:"gatewayHost"`
+	GatewayPort         uint16                `gorm:"type:integer" json:"gatewayPort"`
 	Role                nodeTypes.NodeRole    `gorm:"type:text" json:"role"`
 
 	CreatedAt time.Time
