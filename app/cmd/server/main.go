@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 
 Key Concepts:
 
-- GATEWAY – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and, optionally, 32420-32430/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
+- GATEWAY – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and, optionally, 32420-32421/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
 - CLIENT – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services.
 - SERVER (optional) – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
@@ -47,7 +47,7 @@ Now you should be able to access the Docker-based services from your local machi
 
 If the installation process fails, or the service is not accessible over the Internet, make sure that:
 
-- the required ports are open on the gateway VPS (80/tcp, 443/tcp, 4060/tcp, 51820/udp and, optionally, 32420-32430/tcp+udp)
+- the required ports are open on the gateway VPS (80/tcp, 443/tcp, 4060/tcp, 51820/udp and, optionally, 32420-32421/tcp+udp)
 - there's a correct DNS A-record, pointing to your gateway VPS
 - the gateway VPS has docker installed
 - the ssh user, used for bootstraping the gateway VPS, is allowed to run docker commands on the gateway VPS

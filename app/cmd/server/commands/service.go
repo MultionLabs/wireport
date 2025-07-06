@@ -72,7 +72,7 @@ var PublishServiceCmd = &cobra.Command{
 	Long: `Publish a new public service that should be exposed to the Internet.
 	
 	Supported protocols: tcp, udp, http, https
-	Supported public ports: 80, 443, 32420-32430 (tcp+udp; should be open in the firewall on the gateway node)
+	Supported public ports: 80, 443, 32420-32421 (tcp+udp; should be open in the firewall on the gateway node)
 	Supported local ports: any
 	Supported local hosts: private IP addresses (e.g. 10.0.0.2) of CLIENT and SERVER nodes on wireport network
 	

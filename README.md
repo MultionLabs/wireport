@@ -51,7 +51,7 @@
 
 ## Key Concepts
 
-- **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and 32420-32430/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
+- **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and 32420-32421/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services from their local machines to the Internet.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
@@ -257,15 +257,15 @@ wireport gateway up sshuser@140.120.110.10:22 --ssh-key-path ~/.ssh/id_rsa --ssh
 * 80/tcp and 443/tcp (HTTP/HTTPS)
 * 4060/tcp (Wireport control channel)
 * 51820/udp (WireGuard)
-* 32420-32430/tcp+udp (reserved ports for exposing services with wireport)
+* 32420-32421/tcp+udp (reserved ports for exposing services with wireport)
 
 Example with UFW:
 
 ```bash
 sudo ufw allow 22,80,443,4060/tcp
 sudo ufw allow 51820/udp
-sudo ufw allow 32420:32430/tcp
-sudo ufw allow 32420:32430/udp
+sudo ufw allow 32420:32421/tcp
+sudo ufw allow 32420:32421/udp
 sudo ufw enable
 ```
 

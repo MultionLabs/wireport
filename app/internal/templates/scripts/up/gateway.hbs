@@ -2,7 +2,7 @@ docker pull {{ wireportGatewayContainerImage }} && docker run -d -it --privilege
 	-p 80:80/tcp -p 443:443/tcp \
 	-p 51820:51820/udp \
 	-p 4060:4060/tcp \
-	-p 32420-32430/tcp -p 32420-32430/udp \
+	-p 32420-32421:32420-32421/tcp -p 32420-32421:32420-32421/udp \
 	-e DATABASE_PATH=/app/wireport/wireport.db \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	-v ~/.wireport-docker/gateway:/app/wireport \
