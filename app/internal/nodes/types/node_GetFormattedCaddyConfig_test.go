@@ -91,7 +91,7 @@ func TestNode_GetFormattedCaddyConfig(t *testing.T) {
     layer4 {
         # more: https://github.com/mholt/caddy-l4
 
-        127.0.0.1:8080 {
+        tcp/127.0.0.1:8080 {
             route {
                 proxy {
                     upstream tcp/192.168.1.100:8080

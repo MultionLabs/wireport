@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"wireport/cmd/server/config"
 	"wireport/internal/publicservices"
 )
 
@@ -71,14 +72,14 @@ var PublishServiceCmd = &cobra.Command{
 	Long: `Publish a new public service that should be exposed to the Internet.
 	
 	Supported protocols: tcp, udp, http, https
-	Supported public ports: 80, 443
+	Supported public ports: 80, 443, 32420-32430 (tcp+udp; should be open in the firewall on the gateway node)
 	Supported local ports: any
 	Supported local hosts: private IP addresses (e.g. 10.0.0.2) of CLIENT and SERVER nodes on wireport network
 	
 	Example:
 
 	wireport service publish --local http://10.0.0.2:4000 --public https://demo.server.com:443
-	wireport service publish --local tcp://10.0.0.2:4000 --public tcp://demo.server.com:443`,
+	wireport service publish --local tcp://10.0.0.2:4000 --public tcp://0.0.0.0:443`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		localProtocol, localHost, localPort, err := parseAddress(local)
 
@@ -94,6 +95,11 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
+		if *publicPort == config.Config.ControlServerPort {
+			cmd.Printf("❌ Error: port %d is reserved for wireport control plane and cannot be used for publishing services\n", config.Config.ControlServerPort)
+			return
+		}
+
 		commandsService.ServicePublish(cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
 	},
 }
@@ -105,7 +111,7 @@ var UnpublishServiceCmd = &cobra.Command{
 	
 	Example:
 
-	wireport service unpublish --public tcp://demo.server.com:443`,
+	wireport service unpublish --public tcp://140.120.10.10:443`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		publicProtocol, publicHost, publicPort, err := parseAddress(public)
 
@@ -177,17 +183,17 @@ var ListParamsServiceCmd = &cobra.Command{
 
 func init() {
 	PublishServiceCmd.Flags().StringVarP(&local, "local", "l", "", "Local address of the service (e.g. tcp://localhost:4000)")
-	PublishServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://public:4434)")
+	PublishServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://140.120.10.10:32420)")
 
-	UnpublishServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://public:4434)")
+	UnpublishServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://140.120.10.10:32420)")
 
-	NewParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://public:4434)")
+	NewParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://140.120.10.10:32420)")
 	NewParamsServiceCmd.Flags().StringVar(&paramValue, "param-value", "", "Value of the parameter to add (e.g. 'header_up X-Tenant-Hostname {http.request.host}', 'dial_timeout 5s' and other valid caddy directives for reverse proxy and/or layer 4 Caddyfile directives)")
 
-	RemoveParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://public:4434)")
+	RemoveParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://140.120.10.10:32420)")
 	RemoveParamsServiceCmd.Flags().StringVar(&paramValue, "param-value", "", "Value of the parameter to remove (e.g. 'header_up X-Tenant-Hostname {http.request.host}', 'dial_timeout 5s' and other valid caddy directives for reverse proxy and/or layer 4 Caddyfile directives)")
 
-	ListParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://public:4434)")
+	ListParamsServiceCmd.Flags().StringVarP(&public, "public", "p", "", "Public address of the service (e.g. tcp://140.120.10.10:32420)")
 
 	ParamsServiceCmd.AddCommand(NewParamsServiceCmd)
 	ParamsServiceCmd.AddCommand(RemoveParamsServiceCmd)

@@ -51,7 +51,7 @@
 
 ## Key Concepts
 
-- **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp and 51820/udp. This node acts as the ingress gateway and an entry point to your published services.
+- **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and 32420-32430/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services from their local machines to the Internet.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
@@ -86,7 +86,7 @@ or
 **from binaries (Linux, macOS, Windows)**
 
 <details>
-<summary>Links to binaries (Linux, macOS, Windows)</summary>
+<summary>Links to latest pre-built packages & unsigned binaries (Linux, macOS, Windows)</summary>
 
 | Platform | AMD64 | ARM64 |
 |:---------|:------|:------|
@@ -97,6 +97,26 @@ or
 | **Linux (.rpm)** | [wireport-linux-amd64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.rpm) | [wireport-linux-arm64.rpm](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-arm64.rpm) |
 | **Windows** | [wireport-windows-amd64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-amd64.zip) | [wireport-windows-arm64.zip](https://github.com/MultionLabs/wireport/releases/latest/download/wireport-windows-arm64.zip) |
 
+Installing from a `.deb` package on Ubuntu or Debian (amd64):
+
+```bash
+wget https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.deb && \
+sudo dpkg -i ./wireport-linux-amd64.deb
+```
+
+Installing from an `.rpm` package on Alma or Rocky (amd64):
+
+```bash
+wget https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.rpm && \
+sudo rpm -ivh ./wireport-linux-amd64.rpm
+```
+
+Installing from a `.tar` package (e.g., on Arch; amd64):
+
+```bash
+wget https://github.com/MultionLabs/wireport/releases/latest/download/wireport-linux-amd64.tar && \
+sudo tar -xvf wireport-linux-amd64.tar -C /
+```
 
 ### ⚠️ Running Unsigned Binaries on macOS and Windows
 
@@ -163,6 +183,8 @@ wireport gateway up sshuser@140.120.110.10:22
 ```
 
 *(replace SSH username, IP, and PORT with the real details of the GATEWAY machine)*
+
+This command outputs a WireGuard configuration -- **import it into your WireGuard client** on your CLIENT device and **activate it** before proceeding with the next command.
 
 <details>
 <summary>Sample output</summary>
@@ -235,12 +257,15 @@ wireport gateway up sshuser@140.120.110.10:22 --ssh-key-path ~/.ssh/id_rsa --ssh
 * 80/tcp and 443/tcp (HTTP/HTTPS)
 * 4060/tcp (Wireport control channel)
 * 51820/udp (WireGuard)
+* 32420-32430/tcp+udp (reserved ports for exposing services with wireport)
 
 Example with UFW:
 
 ```bash
 sudo ufw allow 22,80,443,4060/tcp
 sudo ufw allow 51820/udp
+sudo ufw allow 32420:32430/tcp
+sudo ufw allow 32420:32430/udp
 sudo ufw enable
 ```
 
@@ -263,6 +288,7 @@ wireport service publish \
   --local  http://10.0.0.2:3000 \
   --public https://demo.example.com:443
 ```
+(assuming `10.0.0.2` is the IP address of your CLIENT device in wireport network)
 
 🎉 **Congratulations!** Your local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
 
@@ -271,9 +297,10 @@ wireport service publish \
 
 This command supports different protocols (HTTP, HTTPS, TCP, UDP) and automatically provisions a free SSL certificate for the domain when an HTTPS-based URL with a domain name is specified in the **--public** parameter, provided that a correct A-record is set up in your domain provider's DNS settings and points to the GATEWAY machine.
 
-* **--local** – URL of the service **on the machine where you run the command** (or another CLIENT/SERVER node from the wireport-managed WireGuard network)
+* **--local** – address of the service **on the machine where you run the command** (or another CLIENT/SERVER node from the wireport-managed WireGuard network)
 * **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
 
+If a service is supposed to be exposed using the public IP of the gateway node (e.g., to be available on `140.120.110.10`), don't specify the public IP itself in **--public** argument, but use `0.0.0.0` instead (e.g., **tcp://0.0.0.0:32420**)
 </details>
 
 <details>
@@ -319,6 +346,59 @@ If you encounter issues:
 3. Check status of the WireGuard network inside the GATEWAY and SERVER wireport containers using `wg show` and other WireGuard commands
 4. Check pingability of private services from inside GATEWAY, SERVER and CLIENT nodes
 5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to the `wireport-net` Docker network (wireport agent manages this automatically).
+
+<details>
+<summary>Test commands for TCP & UDP forwarding</summary>
+
+For testing UDP forwarding, on the SERVR node run:
+
+```bash
+docker run --rm -d --name udp-server alpine sh -c "apk add --no-cache socat && socat -v UDP-RECV:3000 STDOUT"
+```
+
+- this command will start a docker container, called `udp-server`.
+
+Now, send some test UDP packets from your CLIENT device, e.g.:
+
+```bash
+echo "hello via UDP" | nc -u 10.0.0.3 3000
+```
+(for a test inside the wireport network)
+
+or
+
+```bash
+echo "hello via UDP" | nc -u 140.120.110.10 32420
+```
+(for a test, involving publicly exposed services, e.g. `wireport service publish --public udp://0.0.0.0:32420 --local udp://udp-server:3000` or so)
+
+The logs of `udp-server` container on your SERVER node should log the test data.
+
+For testing UDP forwarding, on the SERVER node run:
+
+```bash
+docker run --rm -d --name tcp-server alpine sh -c "while true; do nc -lk -p 3000; done"
+```
+
+- this command will start a docker container, called `tcp-server`.
+
+Now, send some test TCP packets from your CLIENT device, e.g.:
+
+```bash
+echo "hello via TCP" | nc 10.0.0.3 3000
+```
+(for a test inside the wireport network)
+
+or
+
+```bash
+echo "hello via TCP" | nc 140.120.110.10 32420
+```
+(for a test, involving publicly exposed services, e.g. `wireport service publish --public tcp://0.0.0.0:32420 --local tcp://tcp-server:3000` or so)
+
+The logs of `tcp-server` container on your SERVER node should log the test data.
+
+</details>
 
 ## Sponsorship
 

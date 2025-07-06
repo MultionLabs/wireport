@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"wireport/cmd/server/config"
-	docker_utils "wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/logger"
 
@@ -214,20 +213,6 @@ func (r *Repository) CreateGateway(WGPublicIP types.IPMarshable, WGPublicPort ui
 		var gatewayPeers []types.WGConfigPeer = []types.WGConfigPeer{}
 
 		var gatewayWGPublicIP = WGPublicIP.String()
-		var dockerSubnet *types.IPNetMarshable
-
-		dockerSubnet, err = r.GetNextAssignableDockerSubnet()
-
-		if err != nil {
-			return err
-		}
-
-		// ensure docker network exists and is attached to the container
-
-		if err = docker_utils.EnsureDockerNetworkExistsAndAttached(dockerSubnet); err != nil {
-			logger.Error("Failed to ensure docker network exists and is attached to the container: %v", err)
-			return err
-		}
 
 		node = &types.Node{
 			ID:           nodeID,
@@ -251,7 +236,7 @@ func (r *Repository) CreateGateway(WGPublicIP types.IPMarshable, WGPublicPort ui
 			GatewayPublicPort: gatewayPublicPort,
 			GatewayCertBundle: gatewayCertBundle,
 			ClientCertBundle:  nil,
-			DockerSubnet:      dockerSubnet,
+			DockerSubnet:      nil,
 			IsCurrentNode:     true, // only create on gateway node
 		}
 
@@ -715,13 +700,6 @@ func (r *Repository) EnsureGatewayNode(WGPublicIP types.IPMarshable, WGPublicPor
 
 		if err != nil {
 			logger.Error("Failed to create gateway node: %v", err)
-			return nil, err
-		}
-	} else {
-		err := docker_utils.EnsureDockerNetworkExistsAndAttached(gatewayNode.DockerSubnet)
-
-		if err != nil {
-			logger.Error("Failed to ensure docker network exists and is attached to the container: %v", err)
 			return nil, err
 		}
 	}

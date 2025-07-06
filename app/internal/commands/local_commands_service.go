@@ -194,23 +194,6 @@ func (s *LocalCommandsService) GatewayStatus(creds *ssh.Credentials, stdOut io.W
 	}
 	fmt.Fprintf(stdOut, "\n")
 
-	// Docker Network Status Check
-	fmt.Fprintf(stdOut, "🌐 wireport Docker Network\n")
-	networkStatus, err := sshService.GetWireportNetworkStatus()
-	if err != nil {
-		fmt.Fprintf(stdOut, "   Status: ❌ Check Failed\n")
-		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
-		return
-	}
-
-	if networkStatus != "" {
-		fmt.Fprintf(stdOut, "   Network: ✅ '%s' exists\n", strings.TrimSpace(networkStatus))
-	} else {
-		fmt.Fprintf(stdOut, "   Network: ❌ '%s' not found\n", config.Config.DockerNetworkName)
-		fmt.Fprintf(stdOut, "💡 Network will be created when wireport starts.\n")
-	}
-	fmt.Fprintf(stdOut, "\n")
-
 	fmt.Fprintf(stdOut, "✨ Gateway Status check completed successfully!\n")
 }
 
@@ -297,18 +280,6 @@ func (s *LocalCommandsService) GatewayDown(creds *ssh.Credentials, stdOut io.Wri
 	currentNode, err := s.NodesRepository.GetCurrentNode()
 
 	if err == nil && currentNode != nil && currentNode.Role == node_types.NodeRoleGateway {
-		// Local execution – just detach and remove docker network like in ServerDown
-		err = dockerutils.DetachDockerNetworkFromAllContainers()
-		if err != nil {
-			fmt.Fprintf(errOut, "Error detaching wireport docker network: %v\n", err)
-			return
-		}
-
-		err = dockerutils.RemoveDockerNetwork()
-		if err != nil {
-			fmt.Fprintf(errOut, "Error removing wireport docker network: %v\n", err)
-			return
-		}
 
 		return
 	}

@@ -74,14 +74,14 @@ func (s *PublicService) AsCaddyConfigEntry() (result string, err error) {
 		upstream := strings.TrimSpace(fmt.Sprintf("upstream %s/%s:%d %s", s.LocalProtocol, s.LocalHost, s.LocalPort, formatBlockParams(s.Params, 16, 12)))
 
 		result = fmt.Sprintf(`
-        %s:%d {
+        %s/%s:%d {
             route {
                 proxy {
                     %s
                 }
             }
         }
-`, s.PublicHost, s.PublicPort, upstream)
+`, s.PublicProtocol, s.PublicHost, s.PublicPort, upstream)
 	}
 
 	return strings.TrimRight(result, "\t "), nil

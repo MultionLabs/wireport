@@ -43,9 +43,6 @@ build-deb: build-binaries
 			--vendor "$(PKG_VENDOR)" \
 			--url "$(PKG_HOMEPAGE)" \
 			--force \
-			--depends iptables \
-			--depends wireguard-tools \
-			--depends iproute2 \
 			-p $(OUT_PATH)/$(PKG_NAME)-debian-$(arch).deb \
 			$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME);)
 
@@ -61,9 +58,6 @@ build-rpm: build-binaries
 			--vendor "$(PKG_VENDOR)" \
 			--url "$(PKG_HOMEPAGE)" \
 			--force \
-			--depends iptables \
-			--depends wireguard-tools \
-			--depends iproute \
 			-p $(OUT_PATH)/$(PKG_NAME)-rpm-$(arch).rpm \
 			$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME);)
 
@@ -129,9 +123,6 @@ build-deb-docker:
 				--maintainer '$(PKG_MAINTAINER)' \
 				--vendor '$(PKG_VENDOR)' \
 				--url '$(PKG_HOMEPAGE)' \
-				--depends iptables \
-				--depends wireguard-tools \
-				--depends iproute2 \
 				-p $(OUT_PATH)/$(PKG_NAME)-linux-$(arch).deb \
 				$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME)";)
 
@@ -154,9 +145,6 @@ build-rpm-docker:
 				--maintainer '$(PKG_MAINTAINER)' \
 				--vendor '$(PKG_VENDOR)' \
 				--url '$(PKG_HOMEPAGE)' \
-				--depends iptables \
-				--depends wireguard-tools \
-				--depends iproute \
 				-p $(OUT_PATH)/$(PKG_NAME)-linux-$(arch).rpm \
 				$(BIN_PATH)/$(PKG_NAME)-linux-$(arch)=/usr/bin/$(PKG_NAME)";)
 
