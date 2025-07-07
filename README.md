@@ -288,9 +288,9 @@ wireport service publish \
   --local  http://10.0.0.2:3000 \
   --public https://demo.example.com:443
 ```
-(assuming `10.0.0.2` is the IP address of your CLIENT device in wireport network)
+(assuming `10.0.0.2` is the IP address of your CLIENT device in wireport network & there is a DNS A-record for the domain `demo.example.com`, pointing to your GATEWAY node's IP address)
 
-🎉 **Congratulations!** Your local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
+🎉 **Congratulations!** Your first local service running on port 3000 is now securely accessible on the Internet at `https://demo.example.com/`. wireport automatically generates and renews SSL certificates for your domain.
 
 <details>
 <summary>Command and flags explained</summary>
