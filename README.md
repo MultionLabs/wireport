@@ -47,7 +47,7 @@
 - **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
-- **No manual configuration**: [quick and easy start](#quick-start) in just **two commands**
+- [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
 
 ## Key Concepts
 
