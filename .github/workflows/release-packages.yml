@@ -1,0 +1,159 @@
+name: Build and Publish Release Packages
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string to build (ignored on tag push)"
+        required: false
+        default: "0.0.0-dev"
+      publish_release:
+        description: "Publish GitHub release & upload assets (true) or just build (false)"
+        required: false
+        default: "false"
+
+jobs:
+  #-------------------------------------------------------------------
+  # Job: linux-build
+  #   • Runs on Ubuntu
+  #   • Builds Linux packages (.deb, .rpm, .tar) and Windows/macOS ZIPs
+  #   • Uploads build artefacts so they can be picked up by the publish job
+  #-------------------------------------------------------------------
+  linux-build:
+    name: Build packages (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+
+      - name: Install build dependencies (fpm, zip, rpm)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ruby ruby-dev build-essential rpm zip
+          sudo gem install --no-document fpm
+
+      - name: Extract release version
+        id: vars
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build packages (Linux & cross-compiled targets)
+        working-directory: app
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          echo "Building release version ${VERSION} on $(uname -a)"
+          # Linux packages
+          make build-deb build-rpm build-tar-docker VERSION=${VERSION}
+          # Windows/macOS zip archives (cross-compiled)
+          make build-windows-zip build-macos-zip VERSION=${VERSION}
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wireport-packages-linux
+          path: app/dist/*
+          if-no-files-found: error
+
+  #-------------------------------------------------------------------
+  # Job: macos-build
+  #   • Runs on macOS
+  #   • Builds signed macOS installer packages (.pkg) & ZIP archives
+  #   • Uploads build artefacts so they can be picked up by the publish job
+  #-------------------------------------------------------------------
+  macos-build:
+    name: Build packages (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+
+      - name: Install build dependencies (fpm, zip)
+        run: |
+          brew update
+          brew install fpm coreutils gzip xz
+
+      - name: Extract release version
+        id: vars
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build packages (macOS)
+        working-directory: app
+        env:
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          echo "Building release version ${VERSION} on macOS"
+          make build-macos-pkg build-macos-zip VERSION=${VERSION}
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wireport-packages-macos
+          path: app/dist/*
+          if-no-files-found: error
+
+  #-------------------------------------------------------------------
+  # Job: publish
+  #   • Collects artefacts from both build jobs
+  #   • Creates / updates the GitHub Release and uploads all artefacts
+  #-------------------------------------------------------------------
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [linux-build, macos-build]
+    if: github.event_name == 'push' || inputs.publish_release == 'true'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-aggregate
+
+      - name: Display files to upload
+        run: |
+          echo "Files aggregated for release:"
+          find dist-aggregate -type f -print
+
+      - name: Extract release version
+        id: vars
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create / Update GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: wireport ${{ steps.vars.outputs.version }}
+          draft: false
+          prerelease: false
+          files: dist-aggregate/**
