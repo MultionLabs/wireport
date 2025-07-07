@@ -57,8 +57,8 @@ jobs:
           echo "Building release version ${VERSION} on $(uname -a)"
           # Linux packages
           make build-deb build-rpm build-tar-docker VERSION=${VERSION}
-          # Windows/macOS zip archives (cross-compiled)
-          make build-windows-zip build-macos-zip VERSION=${VERSION}
+          # Windows ZIPs (cross-compiled)
+          make build-windows-zip VERSION=${VERSION}
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
@@ -106,7 +106,7 @@ jobs:
           VERSION: ${{ steps.vars.outputs.version }}
         run: |
           echo "Building release version ${VERSION} on macOS"
-          make build-macos-pkg build-macos-zip VERSION=${VERSION}
+          make build-macos-zip build-macos-pkg VERSION=${VERSION}
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
