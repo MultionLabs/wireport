@@ -16,6 +16,17 @@ on:
 
 jobs:
   #-------------------------------------------------------------------
+  # Job: docker-publish
+  #   • Builds and pushes Docker image via reusable workflow
+  #-------------------------------------------------------------------
+  docker-publish:
+    name: Build & Publish Docker image
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+
+  #-------------------------------------------------------------------
   # Job: linux-build
   #   • Runs on Ubuntu
   #   • Builds Linux packages (.deb, .rpm, .tar) and Windows/macOS ZIPs
@@ -124,7 +135,7 @@ jobs:
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: [linux-build, macos-build]
+    needs: [linux-build, macos-build, docker-publish]
     if: github.event_name == 'push' || inputs.publish_release == 'true'
 
     permissions:

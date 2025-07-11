@@ -1,4 +1,6 @@
-VERSION ?= 0.9.1
+VERSION ?= $(shell \
+	tag=$$(git describe --abbrev=0 --tags 2>/dev/null || echo v0.0.0); \
+	echo $${tag}-dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 OUT_PATH ?= dist
