@@ -2,7 +2,6 @@ name: Build and Publish Docker image to GHCR
 
 on:
   push:
-    branches: ["main"]
     tags: ["v*.*.*"]
   workflow_dispatch:
 
