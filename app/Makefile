@@ -10,6 +10,7 @@ GO_MODULE := wireport
 ARCHS := amd64 arm64
 OSES := linux darwin windows
 PACKAGE ?= unknown
+DOCKER_IMAGE ?= ghcr.io/multionlabs/wireport
 
 # Package metadata
 PKG_DESCRIPTION := wireport - ingress proxy and VPN tunnel
@@ -176,7 +177,7 @@ build-pkgs: build-macos-pkg build-macos-zip build-windows-zip build-deb-docker b
 
 docker-build-push:
 	@echo "Building and pushing Docker image..."
-	docker buildx build --platform=linux/amd64,linux/arm64 -t anybotsllc/wireport:$(VERSION) . && docker push anybotsllc/wireport:$(VERSION)
+	docker buildx build --platform=linux/amd64,linux/arm64 -t $(DOCKER_IMAGE):$(VERSION) . && docker push $(DOCKER_IMAGE):$(VERSION)
 
 clean:
 	@echo "Cleaning build artifacts..."

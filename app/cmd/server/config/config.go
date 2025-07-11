@@ -125,9 +125,9 @@ var Config = &Configuration{
 	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
 
 	WireportGatewayContainerName:  "wireport-gateway",
-	WireportGatewayContainerImage: "anybotsllc/wireport",
+	WireportGatewayContainerImage: "ghcr.io/multionlabs/wireport",
 	WireportServerContainerName:   "wireport-server",
-	WireportServerContainerImage:  "anybotsllc/wireport",
+	WireportServerContainerImage:  "ghcr.io/multionlabs/wireport",
 
 	CertExpiry: time.Hour * 24 * 365 * 5, // 5 years
 }
