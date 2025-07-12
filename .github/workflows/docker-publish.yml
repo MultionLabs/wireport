@@ -71,7 +71,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ steps.vars.outputs.version }}
 
       # Build and push the image defined in wireport/Dockerfile
-      - name: Build & push (inline cache)
+      - name: Build & push (GHA + registry cache)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -80,7 +80,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to:   type=gha,mode=max
+          cache-from: |
+            type=gha,scope=wireport
+            type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport-buildcache:cache
+          cache-to: |
+            type=gha,mode=max,scope=wireport
+            type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport-buildcache:cache,mode=max,compression=zstd
           build-args: |
             BUILDKIT_INLINE_CACHE=1
