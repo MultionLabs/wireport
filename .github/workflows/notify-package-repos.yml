@@ -1,12 +1,11 @@
 name: Publish to Homebrew & Scoop Repositories
 
 on:
-  # Automatic trigger after release workflow completes
-  workflow_run:
-    workflows: ["Build and Publish Release Packages"]
-    types:
-      - completed
-  # Manual trigger for testing
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       version:
@@ -17,34 +16,14 @@ jobs:
   dispatch:
     name: Dispatch update events
     runs-on: ubuntu-latest
-    # Only run automatically if upstream workflow succeeded
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      github.event_name == 'workflow_dispatch'
-
     steps:
-      - name: Determine release version
-        id: vars
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            REF="${{ github.event.workflow_run.head_branch }}"
-            if [[ "$REF" == v* ]]; then
-              VERSION="${REF#v}"
-            else
-              VERSION="$REF"
-            fi
-          else
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Dispatch update to homebrew-wireport
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.CROSS_REPO_PACKAGE_TOKEN }}
           repository: MultionLabs/homebrew-wireport
           event-type: update-formula
-          client-payload: '{"version":"${{ steps.vars.outputs.version }}"}'
+          client-payload: '{"version":"${{ inputs.version }}"}'
 
       - name: Dispatch update to scoop-wireport
         uses: peter-evans/repository-dispatch@v3
@@ -52,4 +31,4 @@ jobs:
           token: ${{ secrets.CROSS_REPO_PACKAGE_TOKEN }}
           repository: MultionLabs/scoop-wireport
           event-type: update-bucket
-          client-payload: '{"version":"${{ steps.vars.outputs.version }}"}'
+          client-payload: '{"version":"${{ inputs.version }}"}'
