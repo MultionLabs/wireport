@@ -2,6 +2,7 @@ package dockerutils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"wireport/cmd/server/config"
@@ -156,6 +157,13 @@ func EnsureDockerNetworkIsAttachedToAllContainers() error {
 	}
 
 	for _, container := range containers {
+		// Skip wireport-gateway container (should not be connected to the network)
+		for _, name := range container.Names {
+			if name == fmt.Sprintf("/%s", config.Config.WireportGatewayContainerName) {
+				continue
+			}
+		}
+
 		// Skip containers that are already connected to the target network to avoid conflicts
 		if container.NetworkSettings != nil {
 			if _, ok := container.NetworkSettings.Networks[config.Config.DockerNetworkName]; ok {
