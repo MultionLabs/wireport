@@ -1,6 +1,10 @@
-docker pull {{ wireportServerContainerImage }} && docker run -d --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
-	-e DATABASE_PATH=/app/wireport/wireport.db \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	-v ~/.wireport-docker/server:/app/wireport \
-	--name {{ wireportServerContainerName }} \
-	{{ wireportServerContainerImage }} join {{ serverJoinToken }}
+docker pull {{ wireportServerContainerImage }} && \
+docker run -d --privileged \
+  --restart=unless-stopped \
+  --sysctl "net.ipv4.ip_forward=1" \
+  --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
+  -e DATABASE_PATH=/app/wireport/wireport.db \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v ~/.wireport-docker/server:/app/wireport \
+  --name {{ wireportServerContainerName }} \
+  {{ wireportServerContainerImage }} join {{ serverJoinToken }}
