@@ -89,5 +89,3 @@ jobs:
           cache-from: |
             type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport:latest
           cache-to: type=inline
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
