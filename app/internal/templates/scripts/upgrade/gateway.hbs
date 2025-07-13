@@ -1,7 +1,7 @@
 docker pull {{ wireportGatewayContainerImage }} && \
 docker stop {{ wireportGatewayContainerName }} && \
 docker rm {{ wireportGatewayContainerName }} && \
-docker run -d -it --privileged --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
+docker run -d --privileged --restart=unless-stopped --sysctl "net.ipv4.ip_forward=1" --sysctl "net.ipv4.conf.all.src_valid_mark=1" \
 	-p 80:80/tcp -p 443:443/tcp \
 	-p 51820:51820/udp \
 	-p 4060:4060/tcp \
