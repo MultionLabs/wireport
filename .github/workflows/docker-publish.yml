@@ -69,22 +69,25 @@ jobs:
             type=semver,pattern={{version}},value=${{ steps.vars.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.vars.outputs.version }}
             type=semver,pattern={{major}},value=${{ steps.vars.outputs.version }}
-
-      # Build and push the image defined in wireport/Dockerfile
-      - name: Build & push (GHA + registry cache)
+      # Warm Docker cache with previous image
+      - name: Warm Docker cache with previous image
+        run: docker pull ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport:latest || true
+      # Build and push with inline cache
+      - name: Build and push (inline cache)
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          # keep all semantic-version tags *and* add :latest
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport:latest
           labels: ${{ steps.meta.outputs.labels }}
+          # cache: previous :latest → inline in new image
           cache-from: |
-            type=gha,scope=wireport
-            type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport-buildcache:cache
-          cache-to: |
-            type=gha,mode=max,scope=wireport
-            type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport-buildcache:cache,mode=max,compression=zstd
+            type=registry,ref=ghcr.io/${{ steps.repo_owner.outputs.lowercase }}/wireport:latest
+          cache-to: type=inline
           build-args: |
             BUILDKIT_INLINE_CACHE=1
