@@ -1,3 +1,5 @@
 #!/bin/sh
 
+echo "> Stopping wireguard service"
+
 wg-quick down wg0

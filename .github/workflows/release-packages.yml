@@ -170,6 +170,7 @@ jobs:
           name: wireport ${{ steps.vars.outputs.version }}
           draft: false
           prerelease: false
+          generate_release_notes: true
           files: dist-aggregate/**
 
   #-------------------------------------------------------------------

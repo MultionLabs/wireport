@@ -1,3 +1,5 @@
 #!/bin/sh
 
+echo "> Starting wireport-server service"
+
 exec /usr/bin/wireport server start

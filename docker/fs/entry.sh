@@ -50,4 +50,4 @@ fi
 
 chmod +x /etc/service/*/run && chmod +x /etc/service/*/finish
 
-/usr/sbin/runsvdir /etc/service
+exec /usr/sbin/runsvdir /etc/service

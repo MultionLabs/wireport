@@ -1,3 +1,5 @@
 #!/bin/sh
 
+echo "> Starting coredns service"
+
 exec /usr/bin/coredns -conf /etc/coredns/Corefile

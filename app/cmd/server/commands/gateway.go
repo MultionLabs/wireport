@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"wireport/cmd/server/config"
 	"wireport/internal/routes"
 	"wireport/internal/ssh"
 	"wireport/internal/utils"
@@ -12,6 +13,7 @@ import (
 
 var GatewayStartConfigureOnly = false
 var GatewaySSHKeyPassEmpty = false
+var GatewayDockerImage = config.Config.WireportGatewayContainerImage
 var GatewayDockerImageTag = version.Version
 var forceGatewayTeardown = false
 
@@ -72,7 +74,7 @@ var UpGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUp(creds, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.GatewayUp(creds, GatewayDockerImage, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -128,7 +130,7 @@ var UpgradeGatewayCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.GatewayUpgrade(creds, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.GatewayUpgrade(creds, GatewayDockerImage, GatewayDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -146,6 +148,7 @@ func init() {
 
 	UpGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	UpGatewayCmd.Flags().StringVar(&GatewayDockerImage, "image", config.Config.WireportGatewayContainerImage, "Docker image to use for the wireport gateway container")
 	UpGatewayCmd.Flags().StringVar(&GatewayDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport gateway container")
 
 	DownGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
@@ -154,5 +157,6 @@ func init() {
 
 	UpgradeGatewayCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpgradeGatewayCmd.Flags().BoolVar(&GatewaySSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	UpgradeGatewayCmd.Flags().StringVar(&GatewayDockerImage, "image", config.Config.WireportGatewayContainerImage, "Docker image to use for the wireport gateway container")
 	UpgradeGatewayCmd.Flags().StringVar(&GatewayDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport gateway container")
 }

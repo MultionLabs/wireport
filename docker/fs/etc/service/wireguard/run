@@ -1,5 +1,7 @@
 #!/bin/sh
 
+echo "> Starting wireguard service"
+
 # Bring up the WireGuard interface
 wg-quick up wg0
 

@@ -207,7 +207,7 @@ func (s *Service) GetWireportNetworkStatus() (string, error) {
 	return result.Stdout, nil
 }
 
-func (s *Service) InstallWireportGateway(imageTag string) (bool, *string, error) {
+func (s *Service) InstallWireportGateway(image string, imageTag string) (bool, *string, error) {
 	isRunning, err := s.IsWireportGatewayContainerRunning()
 
 	if err != nil {
@@ -235,7 +235,7 @@ func (s *Service) InstallWireportGateway(imageTag string) (bool, *string, error)
 
 	installCmdStr, err := tpl.Exec(map[string]string{
 		"wireportGatewayContainerName":  config.Config.WireportGatewayContainerName,
-		"wireportGatewayContainerImage": fmt.Sprintf("%s:%s", config.Config.WireportGatewayContainerImage, imageTag),
+		"wireportGatewayContainerImage": fmt.Sprintf("%s:%s", image, imageTag),
 	})
 
 	if err != nil {
@@ -381,7 +381,7 @@ func (s *Service) GetWireportServerContainerStatus() (string, error) {
 	return result.Stdout, nil
 }
 
-func (s *Service) InstallWireportServer(serverJoinToken string, imageTag string) (bool, error) {
+func (s *Service) InstallWireportServer(serverJoinToken string, image string, imageTag string) (bool, error) {
 	isRunning, err := s.IsWireportServerContainerRunning()
 
 	if err != nil {
@@ -408,7 +408,7 @@ func (s *Service) InstallWireportServer(serverJoinToken string, imageTag string)
 
 	installCmdStr, err := tpl.Exec(map[string]string{
 		"wireportServerContainerName":  config.Config.WireportServerContainerName,
-		"wireportServerContainerImage": fmt.Sprintf("%s:%s", config.Config.WireportServerContainerImage, imageTag),
+		"wireportServerContainerImage": fmt.Sprintf("%s:%s", image, imageTag),
 		"serverJoinToken":              serverJoinToken,
 	})
 
@@ -464,7 +464,7 @@ func (s *Service) TeardownWireportServer() (bool, error) {
 	return true, nil
 }
 
-func (s *Service) UpgradeWireportGateway(imageTag string) (bool, error) {
+func (s *Service) UpgradeWireportGateway(image string, imageTag string) (bool, error) {
 	upgradeCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpgradeGatewayScriptTemplatePath)
 
 	if err != nil {
@@ -479,7 +479,7 @@ func (s *Service) UpgradeWireportGateway(imageTag string) (bool, error) {
 
 	upgradeCmdStr, err := tpl.Exec(map[string]string{
 		"wireportGatewayContainerName":  config.Config.WireportGatewayContainerName,
-		"wireportGatewayContainerImage": fmt.Sprintf("%s:%s", config.Config.WireportGatewayContainerImage, imageTag),
+		"wireportGatewayContainerImage": fmt.Sprintf("%s:%s", image, imageTag),
 	})
 
 	if err != nil {
@@ -499,7 +499,7 @@ func (s *Service) UpgradeWireportGateway(imageTag string) (bool, error) {
 	return true, nil
 }
 
-func (s *Service) UpgradeWireportServer(imageTag string) (bool, error) {
+func (s *Service) UpgradeWireportServer(image string, imageTag string) (bool, error) {
 	upgradeCmdTemplate, err := templates.Scripts.ReadFile(config.Config.UpgradeServerScriptTemplatePath)
 
 	if err != nil {
@@ -514,7 +514,7 @@ func (s *Service) UpgradeWireportServer(imageTag string) (bool, error) {
 
 	upgradeCmdStr, err := tpl.Exec(map[string]string{
 		"wireportServerContainerName":  config.Config.WireportServerContainerName,
-		"wireportServerContainerImage": fmt.Sprintf("%s:%s", config.Config.WireportServerContainerImage, imageTag),
+		"wireportServerContainerImage": fmt.Sprintf("%s:%s", image, imageTag),
 	})
 
 	if err != nil {

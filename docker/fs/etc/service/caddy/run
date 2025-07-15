@@ -1,3 +1,5 @@
 #!/bin/sh
 
+echo "> Starting caddy service"
+
 exec env GODEBUG=netdns=cgo XDG_DATA_HOME=/app/wireport/caddy/fs/data XDG_CONFIG_HOME=/app/wireport/caddy/fs/config /usr/bin/caddy run --config /etc/caddy/Caddyfile

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"wireport/cmd/server/config"
 	"wireport/internal/nodes/types"
 	"wireport/internal/ssh"
 	"wireport/version"
@@ -13,6 +14,7 @@ var forceServerCreation = false
 var quietServerCreation = false
 var dockerSubnet = ""
 var ServerSSHKeyPassEmpty = false
+var ServerDockerImage = config.Config.WireportServerContainerImage
 var ServerDockerImageTag = version.Version
 var forceServerTeardown = false
 
@@ -81,7 +83,7 @@ var UpServerCmd = &cobra.Command{
 			}
 		}
 
-		commandsService.ServerUp(creds, ServerDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
+		commandsService.ServerUp(creds, ServerDockerImage, ServerDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr(), dockerSubnet)
 	},
 }
 
@@ -147,7 +149,7 @@ var UpgradeServerCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServerUpgrade(creds, ServerDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		commandsService.ServerUpgrade(creds, ServerDockerImage, ServerDockerImageTag, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -170,6 +172,7 @@ func init() {
 	UpServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
 	UpServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
+	UpServerCmd.Flags().StringVar(&ServerDockerImage, "image", config.Config.WireportServerContainerImage, "Docker image to use for the wireport server container")
 	UpServerCmd.Flags().StringVar(&ServerDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport server container")
 
 	DownServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
@@ -178,5 +181,6 @@ func init() {
 
 	UpgradeServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	UpgradeServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")
+	UpgradeServerCmd.Flags().StringVar(&ServerDockerImage, "image", config.Config.WireportServerContainerImage, "Docker image to use for the wireport server container")
 	UpgradeServerCmd.Flags().StringVar(&ServerDockerImageTag, "image-tag", version.Version, "Image tag to use for the wireport server container")
 }

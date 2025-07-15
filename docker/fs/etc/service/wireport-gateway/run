@@ -1,3 +1,5 @@
 #!/bin/sh
 
+echo "> Starting wireport-gateway service"
+
 exec /usr/bin/wireport gateway start

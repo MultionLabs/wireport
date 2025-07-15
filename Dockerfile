@@ -39,14 +39,15 @@ RUN go build -o wireport ./cmd/server/main.go
 # wireguard, tcpdump & other tools
 FROM alpine:3.21
 
-RUN apk add --no-cache -U \
+# Update base image with security patches and install only the minimal runtime
+RUN apk --no-cache upgrade && apk add --no-cache \
     wireguard-tools \
     iptables \
     nano \
     bind-tools \
     tcpdump \
     runit \
-    docker
+    docker-cli
 
 COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 COPY --from=coredns-builder /app/coredns/coredns /usr/bin/coredns

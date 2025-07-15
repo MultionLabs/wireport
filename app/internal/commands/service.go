@@ -153,7 +153,7 @@ func (s *Service) GatewayStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.GatewayStatus(creds, stdOut)
 }
 
-func (s *Service) GatewayUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) GatewayUp(creds *ssh.Credentials, image string, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -161,7 +161,7 @@ func (s *Service) GatewayUp(creds *ssh.Credentials, imageTag string, stdOut io.W
 			{
 				Roles: []types.NodeRole{types.NodeRoleEmpty},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.GatewayUp(creds, imageTag, stdOut, errOut)
+					local.GatewayUp(creds, image, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},
@@ -201,7 +201,7 @@ func (s *Service) GatewayDown(creds *ssh.Credentials, stdOut io.Writer, errOut i
 	)
 }
 
-func (s *Service) GatewayUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) GatewayUpgrade(creds *ssh.Credentials, image string, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -209,7 +209,7 @@ func (s *Service) GatewayUpgrade(creds *ssh.Credentials, imageTag string, stdOut
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.GatewayUpgrade(creds, imageTag, stdOut, errOut)
+					local.GatewayUpgrade(creds, image, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},
@@ -340,7 +340,7 @@ func (s *Service) ServerStatus(creds *ssh.Credentials, stdOut io.Writer) {
 	s.LocalCommandsService.ServerStatus(creds, stdOut)
 }
 
-func (s *Service) ServerUp(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
+func (s *Service) ServerUp(creds *ssh.Credentials, image string, imageTag string, stdOut io.Writer, errOut io.Writer, dockerSubnet string) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -348,7 +348,7 @@ func (s *Service) ServerUp(creds *ssh.Credentials, imageTag string, stdOut io.Wr
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServerUp(creds, imageTag, stdOut, errOut, dockerSubnet, s)
+					local.ServerUp(creds, image, imageTag, stdOut, errOut, dockerSubnet, s)
 					return nil, nil
 				},
 			},
@@ -410,7 +410,7 @@ func (s *Service) ServerList(requestFromNodeID *string, stdOut io.Writer, errOut
 	)
 }
 
-func (s *Service) ServerUpgrade(creds *ssh.Credentials, imageTag string, stdOut io.Writer, errOut io.Writer) {
+func (s *Service) ServerUpgrade(creds *ssh.Credentials, image string, imageTag string, stdOut io.Writer, errOut io.Writer) {
 	s.executeCommand(
 		stdOut,
 		errOut,
@@ -418,7 +418,7 @@ func (s *Service) ServerUpgrade(creds *ssh.Credentials, imageTag string, stdOut 
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServerUpgrade(creds, imageTag, stdOut, errOut)
+					local.ServerUpgrade(creds, image, imageTag, stdOut, errOut)
 					return nil, nil
 				},
 			},

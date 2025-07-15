@@ -1,10 +1,13 @@
 #!/bin/sh
 
+echo "> Starting iptables-gateway service"
+
 # Wait a moment for network interfaces to be ready
 sleep 4
 
-sysctl -w net.ipv4.ip_forward=1
-sysctl -p
+# these two are already set upon container start (docker run --sysctl "net.ipv4.ip_forward=1" ...)
+# sysctl -w net.ipv4.ip_forward=1
+# sysctl -p
 
 iptables -A FORWARD -i wg0 -o eth1 -j ACCEPT
 iptables -A FORWARD -i eth1 -o wg0 -j ACCEPT
