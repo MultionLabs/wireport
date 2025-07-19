@@ -74,7 +74,12 @@ func (s *LocalCommandsService) GatewayStart(gatewayPublicIP string, stdOut io.Wr
 		}()
 	}
 
-	publicServices := s.PublicServicesRepository.GetAll()
+	publicServices, err := s.PublicServicesRepository.GetAll()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+		return
+	}
 
 	err = gatewayNode.SaveConfigs(publicServices, true)
 
@@ -1012,7 +1017,12 @@ func (s *LocalCommandsService) ClientNew(stdOut io.Writer, errOut io.Writer, joi
 			}
 
 			// save configs & restart services
-			publicServices := s.PublicServicesRepository.GetAll()
+			publicServices, err := s.PublicServicesRepository.GetAll()
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+				return
+			}
 
 			currentNode, err = s.NodesRepository.GetCurrentNode()
 
@@ -1095,7 +1105,14 @@ func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer
 		return
 	}
 
-	err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
+	publicServices, err := s.PublicServicesRepository.GetAll()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+		return
+	}
+
+	err = gatewayNode.SaveConfigs(publicServices, false)
 
 	if err != nil {
 		fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1123,7 +1140,14 @@ func (s *LocalCommandsService) ServiceUnpublish(stdOut io.Writer, errOut io.Writ
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
+		publicServices, err := s.PublicServicesRepository.GetAll()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+			return
+		}
+
+		err = gatewayNode.SaveConfigs(publicServices, false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1143,8 +1167,13 @@ func (s *LocalCommandsService) ServiceUnpublish(stdOut io.Writer, errOut io.Writ
 	}
 }
 
-func (s *LocalCommandsService) ServiceList(stdOut io.Writer, _ io.Writer) {
-	services := s.PublicServicesRepository.GetAll()
+func (s *LocalCommandsService) ServiceList(stdOut io.Writer, errOut io.Writer) {
+	services, err := s.PublicServicesRepository.GetAll()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+		return
+	}
 
 	fmt.Fprintf(stdOut, "PUBLIC\t->\tLOCAL\n")
 	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
@@ -1171,7 +1200,14 @@ func (s *LocalCommandsService) ServiceParamNew(stdOut io.Writer, errOut io.Write
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
+		publicServices, err := s.PublicServicesRepository.GetAll()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+			return
+		}
+
+		err = gatewayNode.SaveConfigs(publicServices, false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)
@@ -1202,7 +1238,14 @@ func (s *LocalCommandsService) ServiceParamRemove(stdOut io.Writer, errOut io.Wr
 			return
 		}
 
-		err = gatewayNode.SaveConfigs(s.PublicServicesRepository.GetAll(), false)
+		publicServices, err := s.PublicServicesRepository.GetAll()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to list services: %v\n", err)
+			return
+		}
+
+		err = gatewayNode.SaveConfigs(publicServices, false)
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Error saving gateway node configs: %v\n", err)

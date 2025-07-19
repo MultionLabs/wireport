@@ -42,6 +42,7 @@
 
 - SSL/TLS termination with **100% free and automated certificate provisioning and renewal**
 - **Reverse proxy** with support for HTTP(S) and TCP/UDP (Layer-4) (Caddy)
+- **Secure access** to internal docker-based services and admin dashboards
 - **Secure VPN tunneling** (WireGuard)
 - Automatic **service discovery and hostname resolution by Docker container names** (CoreDNS)
 - **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)

@@ -1,6 +1,10 @@
 package publicservices
 
-import "gorm.io/gorm"
+import (
+	"errors"
+
+	"gorm.io/gorm"
+)
 
 type Repository struct {
 	db *gorm.DB
@@ -14,14 +18,18 @@ func (r *Repository) Save(service *PublicService) error {
 	return r.db.Save(service).Error
 }
 
-func (r *Repository) GetAll() []*PublicService {
+func (r *Repository) GetAll() ([]*PublicService, error) {
 	var services []*PublicService
 
 	if err := r.db.Find(&services).Error; err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return services, nil
+		}
+
+		return nil, err
 	}
 
-	return services
+	return services, nil
 }
 
 func (r *Repository) Delete(publicProtocol, publicHost string, publicPort uint16) bool {

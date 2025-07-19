@@ -304,7 +304,14 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 					return
 				}
 
-				publicServices := services.PublicServicesRepository.GetAll()
+				var publicServices []*publicservices.PublicService
+				publicServices, err = services.PublicServicesRepository.GetAll()
+
+				if err != nil {
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToListServices, err)
+					http.Error(w, "", http.StatusBadRequest)
+					return
+				}
 
 				err = gatewayNode.SaveConfigs(publicServices, false)
 
@@ -355,7 +362,14 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 				logger.Info("[%s] Client node created from join request", r.Method)
 
-				publicServices := services.PublicServicesRepository.GetAll()
+				var publicServices []*publicservices.PublicService
+				publicServices, err = services.PublicServicesRepository.GetAll()
+
+				if err != nil {
+					logger.Error("[%s] %v: %v", r.Method, ErrFailedToListServices, err)
+					http.Error(w, "", http.StatusBadRequest)
+					return
+				}
 
 				err = gatewayNode.SaveConfigs(publicServices, false)
 

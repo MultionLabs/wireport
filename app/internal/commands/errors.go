@@ -16,4 +16,5 @@ var (
 	ErrFailedToDeleteJoinRequest  = errors.New("failed to delete join request")
 	ErrFailedToCreateClientNode   = errors.New("failed to create client node")
 	ErrFailedToRestartServices    = errors.New("failed to restart services")
+	ErrFailedToListServices       = errors.New("failed to list services")
 )
