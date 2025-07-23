@@ -186,7 +186,7 @@ Before bootstrapping your wireport gateway node, you need to ensure proper DNS c
 
 If your use case does not rely on DNS-names (e.g., you're publishing services on bare IP address of the gateway node and do not use free, automatically managed SSL certificates), you may skip the whole DNS configuration step.
 
-Otherwise, for wireport to correctly expose your local services via publicly available domain names, as well as for you to make use of automatically managed free SSL certificates, you must configure DNS records pointing to your gateway's public IP address:
+Otherwise, for wireport to correctly expose your local services via publicly available domain names, as well as for you to make use of automatically managed free SSL certificates, you must configure DNS records pointing to your gateway's public IP address (replace `140.120.110.10` with your gateways's node public IP):
 
 1. **A Records**: Create A records for each domain you plan to use with wireport, pointing to your gateway's public IP address
    ```
