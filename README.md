@@ -64,8 +64,14 @@
 |:--:|
 | *wireport - docker service discovery & hostname resolution by container name* |
 
-## Installation
+## CLIENT node preparation (e.g., your laptop/PC)
 
+### Prerequisites
+
+- **Installed WireGuard client** - required for connecting to the VPN tunnel between GATEWAY, SERVER and CLIENT nodes of wireport ([official WireGuard website](https://www.wireguard.com/install/))
+- **Installed wireport CLI**
+
+### wireport cli installation
 
 **via Homebrew (macOS, Linux)**
 
@@ -171,13 +177,88 @@ Alternatively, you can allow the app through **System Preferences**:
 
 </details>
 
+
+## GATEWAY node preparation
+
+Before bootstrapping your wireport gateway node, you need to ensure proper DNS configuration and firewall setup.
+
+### DNS Configuration
+
+If your use case does not rely on DNS-names (e.g., you're publishing services on bare IP address of the gateway node and do not use free, automatically managed SSL certificates), you may skip the whole DNS configuration step.
+
+Otherwise, for wireport to correctly expose your local services via publicly available domain names, as well as for you to make use of automatically managed free SSL certificates, you must configure DNS records pointing to your gateway's public IP address:
+
+1. **A Records**: Create A records for each domain you plan to use with wireport, pointing to your gateway's public IP address
+   ```
+   demo.example.com     A    140.120.110.10
+   api.example.com      A    140.120.110.10
+   *.example.com        A    140.120.110.10  (wildcard for subdomains)
+   ```
+
+2. **Propagation Time**: DNS changes can take up to 48 hours to propagate globally, though most providers complete propagation within 15-30 minutes
+
+3. **Verification**: You can verify DNS propagation using tools like:
+   ```bash
+   nslookup demo.example.com
+   dig demo.example.com
+   ```
+
+### Firewall and Port Requirements
+
+For wireport to operate correctly on your gateway node, the following ports must be open and accessible from the Internet on that gateway node:
+
+| Port | Protocol | Purpose | Required |
+|:-----|:---------|:---------|:---------|
+| 22 | TCP | SSH access for wireport installation. If you use custom SSH port, make sure to open that custom port | ✅ Required |
+| 80 | TCP | HTTP traffic and free SSL certificate validation | ✅ Required |
+| 443 | TCP | HTTPS traffic | ✅ Required |
+| 4060 | TCP | wireport control channel | ✅ Required |
+| 51820 | UDP | WireGuard VPN tunnel | ✅ Required |
+| 32420-32421 | TCP/UDP | Reserved ports for exposed services | ✅ Required |
+
+#### Firewall Configuration Examples
+
+**Ubuntu/Debian (UFW):**
+```bash
+sudo ufw allow 22,80,443,4060/tcp
+sudo ufw allow 51820/udp
+sudo ufw allow 32420:32421/tcp
+sudo ufw allow 32420:32421/udp
+sudo ufw enable
+```
+
+**CentOS/RHEL (firewalld):**
+```bash
+sudo firewall-cmd --permanent --add-service=ssh
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-port=4060/tcp
+sudo firewall-cmd --permanent --add-port=51820/udp
+sudo firewall-cmd --permanent --add-port=32420-32421/tcp
+sudo firewall-cmd --permanent --add-port=32420-32421/udp
+sudo firewall-cmd --reload
+```
+
+**Cloud Provider Firewalls:**
+- **AWS**: Configure Security Groups to allow the required ports
+- **GCP**: Configure Firewall Rules in VPC
+- **Azure**: Configure Network Security Groups
+- **DigitalOcean**: Configure Cloud Firewall
+
+### Additional Prerequisites
+
+1. **Docker Installation**: The gateway must have Docker installed and running
+2. **SSH Access**: The SSH user must have sudo privileges for Docker operations
+3. **Public IP**: The gateway must have a public IP address accessible from the Internet
+4. **Domain Ownership**: You must own or control the domains you plan to use with wireport
+
 ## Quick Start
 
-You're **two commands** away from exposing your first service **from your local machine to the Internet**!
+Once GATEWAY and CLIENT node preparations are completed, the following two commands will help you bootstrap the gateway and expose your first service **from your local machine to the Internet**!
 
 #### 1. Bootstrap a GATEWAY node
 
-Run in your local terminal:
+Run in your local terminal on your CLIENT machine:
 
 ```bash
 wireport gateway up sshuser@140.120.110.10:22
@@ -319,12 +400,70 @@ If a service is supposed to be exposed using the public IP of the gateway node (
 
 ---
 
+## How it works
+
+### Client installation
+
+**Client Node Configuration** is stored in `~/.wireport/<profile>` folder.
+Here `<profile>` equals `default`, unless it's explicitly overridden with `WIREPORT_PROFILE` environment variable (e.g., `WIREPORT_PROFILE=dev wireport -v`).
+
+### Gateway Bootstrapping
+
+When you run `wireport gateway up`, the following happens:
+
+1. **SSH Connection**: wireport connects to your gateway machine via SSH
+2. **Docker Installation Check**: Verifies Docker is installed and accessible to the SSH user
+3. **Container Deployment**: Pulls [wireport docker image](https://github.com/MultionLabs/wireport/pkgs/container/wireport) (version matches your wireport CLI version) and starts `wireport-gateway` Docker container with:
+   - WireGuard VPN server (port 51820/udp)
+   - Caddy reverse proxy (ports 80/tcp, 443/tcp)
+   - CoreDNS for service discovery (internal; not exposed to the Internet)
+   - wireport control plane API (port 4060/tcp; secure communication with TLS-encryption and mTLS-based auth)
+4. **Network Setup**: Creates a private WireGuard network (10.0.0.0/24)
+5. **Certificate Generation**: Creates client certificates for secure API communication and mTLS
+6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/gateway` on the gateway machine
+
+### Server Bootstrapping
+
+When you run `wireport server up`, the following happens:
+
+1. **SSH Connection**: wireport connects to your server machine via SSH
+2. **Docker Installation Check**: Verifies Docker is installed and accessible to the SSH user
+3. **Join Token Generation**: Creates a secure token for joining the wireport network
+4. **Container Deployment**: Pulls [wireport docker image](https://github.com/MultionLabs/wireport/pkgs/container/wireport) (version matches your wireport CLI version) and starts `wireport-server` Docker container with:
+   - WireGuard VPN client
+   - Docker network integration
+   - Service discovery agent
+5. **Network Integration**: Connects the server to the wireport-managed WireGuard network, provided by the gateway node
+6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/server` on the server machine
+
+### Network Architecture
+
+```
+Internet
+    ↕ 
+[GATEWAY] ↔ WireGuard VPN ↔ [SERVER] → [Docker Containers]
+    ↕ 
+WireGuard VPN
+    ↕ 
+[CLIENT] ↔ [Local Services]
+```
+
+- **GATEWAY**: Public entry point with reverse proxy and VPN server
+- **SERVER**: Runs your workloads in Docker containers
+- **CLIENT**: Manages the network and exposes local/server-based services
+- **All nodes**: Connected via encrypted WireGuard VPN tunnel
+
+---
+
 ## Other useful commands
 
 | Purpose | Command |
 |:--------|:--------|
 | Remove a public endpoint | `wireport service unpublish -p https://demo.example.com:443` |
 | Adjust headers/timeouts | `wireport service params new -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
+| Remove service parameters | `wireport service params remove -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
+| List service parameters | `wireport service params list -p https://demo.example.com:443` |
+| List all published services | `wireport service list` |
 | Create more CLIENTs | `wireport client new` |
 | Add a workload SERVER | `wireport server up sshuser@140.120.110.10` |
 | Tear down a SERVER | `wireport server down sshuser@140.120.110.10` |
@@ -351,7 +490,7 @@ If you encounter issues:
 <details>
 <summary>Test commands for TCP & UDP forwarding</summary>
 
-For testing UDP forwarding, on the SERVR node run:
+For testing UDP forwarding, on the SERVER node run:
 
 ```bash
 docker run --rm -d --name udp-server alpine sh -c "apk add --no-cache socat && socat -v UDP-RECV:3000 STDOUT"
@@ -375,7 +514,7 @@ echo "hello via UDP" | nc -u 140.120.110.10 32420
 
 The logs of `udp-server` container on your SERVER node should log the test data.
 
-For testing UDP forwarding, on the SERVER node run:
+For testing TCP forwarding, on the SERVER node run:
 
 ```bash
 docker run --rm -d --name tcp-server alpine sh -c "while true; do nc -lk -p 3000; done"
