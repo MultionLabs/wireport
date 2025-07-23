@@ -13,8 +13,9 @@
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
+  <a href="#preparation">Preparation</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#how-it-works">How it works</a> •
   <a href="#security-considerations">Security</a> •
   <a href="#troubleshooting">Troubleshooting</a> •
   <a href="#sponsorship">Sponsorship</a>
@@ -64,14 +65,18 @@
 |:--:|
 | *wireport - docker service discovery & hostname resolution by container name* |
 
-## CLIENT node preparation (e.g., your laptop/PC)
+## Preparation
 
-### Prerequisites
+Before getting started with wireport, you need to prepare both your CLIENT and GATEWAY nodes. This section covers all the prerequisites and setup requirements for each node type.
+
+### CLIENT Node Preparation (e.g., your laptop/PC)
+
+#### Prerequisites
 
 - **Installed WireGuard client** - required for connecting to the VPN tunnel between GATEWAY, SERVER and CLIENT nodes of wireport ([official WireGuard website](https://www.wireguard.com/install/))
 - **Installed wireport CLI**
 
-### wireport cli installation
+#### wireport CLI Installation
 
 **via Homebrew (macOS, Linux)**
 
@@ -125,14 +130,14 @@ wget https://github.com/MultionLabs/wireport/releases/latest/download/wireport-l
 sudo tar -xvf wireport-linux-amd64.tar -C /
 ```
 
-### ⚠️ Running Unsigned Binaries on macOS and Windows
+#### ⚠️ Running Unsigned Binaries on macOS and Windows
 
 Since the binaries are **not signed with commercial certificates**, your operating system may prevent them from launching by default.  
 You will need to manually allow them.
 
 ---
 
-### 🪟 On Windows
+##### 🪟 On Windows
 
 When you try to launch the program, you may see a warning similar to:
 
@@ -148,7 +153,7 @@ This will start the application despite the warning.
 
 ---
 
-### 🍎 On macOS
+##### 🍎 On macOS
 
 When you attempt to open the app or installer, you may see:
 
@@ -177,12 +182,11 @@ Alternatively, you can allow the app through **System Preferences**:
 
 </details>
 
-
-## GATEWAY node preparation
+### GATEWAY Node Preparation
 
 Before bootstrapping your wireport gateway node, you need to ensure proper DNS configuration and firewall setup.
 
-### DNS Configuration
+#### DNS Configuration
 
 If your use case does not rely on DNS-names (e.g., you're publishing services on bare IP address of the gateway node and do not use free, automatically managed SSL certificates), you may skip the whole DNS configuration step.
 
@@ -203,7 +207,7 @@ Otherwise, for wireport to correctly expose your local services via publicly ava
    dig demo.example.com
    ```
 
-### Firewall and Port Requirements
+#### Firewall and Port Requirements
 
 For wireport to operate correctly on your gateway node, the following ports must be open and accessible from the Internet on that gateway node:
 
@@ -216,7 +220,7 @@ For wireport to operate correctly on your gateway node, the following ports must
 | 51820 | UDP | WireGuard VPN tunnel | ✅ Required |
 | 32420-32421 | TCP/UDP | Reserved ports for exposed services | ✅ Required |
 
-#### Firewall Configuration Examples
+##### Firewall Configuration Examples
 
 **Ubuntu/Debian (UFW):**
 ```bash
@@ -245,7 +249,7 @@ sudo firewall-cmd --reload
 - **Azure**: Configure Network Security Groups
 - **DigitalOcean**: Configure Cloud Firewall
 
-### Additional Prerequisites
+#### Additional Prerequisites
 
 1. **Docker Installation**: The gateway must have Docker installed and running
 2. **SSH Access**: The SSH user must have sudo privileges for Docker operations
