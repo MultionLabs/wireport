@@ -389,19 +389,6 @@ This command supports different protocols (HTTP, HTTPS, TCP, UDP) and automatica
 If a service is supposed to be exposed using the public IP of the gateway node (e.g., to be available on `140.120.110.10`), don't specify the public IP itself in **--public** argument, but use `0.0.0.0` instead (e.g., **tcp://0.0.0.0:32420**)
 </details>
 
-<details>
-<summary><strong>Important - DNS config and other prerequisites</strong></summary>
-
-1) For the service to become available over the given public URL, there must be a respective `A`-record in the DNS settings of your domain name provider, pointing to the target **GATEWAY** machine's IP address.
-
-2) After bootstrapping the GATEWAY node with the `wireport gateway up ...` command, you should add the respective WireGuard tunnel on your local machine
-
-3) There must be a service running and accessible at the address specified in the `--local` flag provided to the `wireport service publish` command (this can be on any CLIENT or SERVER node in the wireport-managed WireGuard network)
-
-4) The following ports are available for exposure on the GATEWAY machine (public URL of the exposed service): 80, 443
-
-</details>
-
 ---
 
 ## How it works
