@@ -184,7 +184,7 @@ Alternatively, you can allow the app through **System Preferences**:
 
 ### GATEWAY Node Preparation
 
-Before bootstrapping your wireport gateway node, you need to ensure proper DNS configuration and firewall setup.
+Before bootstrapping your wireport gateway node, you need to ensure proper DNS configuration and gateway node firewall setup.
 
 #### DNS Configuration
 
