@@ -81,7 +81,7 @@ WireGuard VPN
 
 ## Preparation
 
-Before getting started with wireport, you need to prepare your CLIENT, GATEWAY and SERVER (optionally) nodes. This section covers all the prerequisites and setup requirements for each node type.
+Before getting started with wireport, you need to prepare your CLIENT, GATEWAY and (optionally) SERVER nodes. This section covers all the prerequisites and setup requirements for each node type.
 
 ### CLIENT Node Preparation (e.g., your laptop/PC)
 
