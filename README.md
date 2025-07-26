@@ -61,10 +61,9 @@
 - **CLIENT** – any number of laptops/PCs that will connect to the WireGuard network to manage the ingress network and expose services from their local machines to the Internet.
 - **SERVER** *(optional)* – one or more Linux-based machines (with Docker) that run the workloads you want to expose. These nodes join the same private WireGuard network, provided by the GATEWAY.
 
-<div style="display: flex; gap: 16px; justify-content: center;">
-  <img src="assets/wireport-ingress-proxy-vpn-tunnel.png" alt="Ingress Proxy and VPN Tunnel" width="350"/>
-  <img src="assets/wireport-docker-service-discovery.png" alt="Docker Service Discovery" width="350"/>
-</div>
+| ![Ingress Proxy and VPN tunnel](assets/wireport-ingress-proxy-vpn-tunnel.png) | ![Docker Service Discovery](assets/wireport-docker-service-discovery.png) |
+|:--:|:--:|
+| *Ingress Proxy and VPN tunnel - conceptual scheme* | *Docker Service Discovery - conceptual scheme* |
 
 ## Preparation
 
@@ -189,6 +188,8 @@ Before bootstrapping your wireport gateway node, you need to ensure proper DNS c
 
 #### DNS Configuration
 
+<details>
+<summary>Instructions</summary>
 If your use case does not rely on DNS-names (e.g., you're publishing services on bare IP address of the gateway node and do not use free, automatically managed SSL certificates), you may skip the whole DNS configuration step.
 
 Otherwise, for wireport to correctly expose your local services via publicly available domain names, as well as for you to make use of automatically managed free SSL certificates, you must configure DNS records pointing to your gateway's public IP address (replace `140.120.110.10` with your gateways's node public IP):
@@ -207,9 +208,12 @@ Otherwise, for wireport to correctly expose your local services via publicly ava
    nslookup demo.example.com
    dig demo.example.com
    ```
+</details>
 
-#### Firewall and Port Requirements
+#### Firewall and Ports
 
+<details>
+<summary>Instructions</summary>
 For wireport to operate correctly on your gateway node, the following ports must be open and accessible from the Internet on that gateway node:
 
 | Port | Protocol | Purpose |
@@ -220,8 +224,6 @@ For wireport to operate correctly on your gateway node, the following ports must
 | 4060 | TCP | wireport control channel |
 | 51820 | UDP | WireGuard VPN tunnel |
 | 32420-32421 | TCP/UDP | Reserved ports for exposed services |
-
-##### Firewall Configuration Examples
 
 **Ubuntu/Debian (UFW):**
 ```bash
@@ -249,6 +251,7 @@ sudo firewall-cmd --reload
 - **GCP**: Configure Firewall Rules in VPC
 - **Azure**: Configure Network Security Groups
 - **DigitalOcean**: Configure Cloud Firewall
+</details>
 
 #### Additional Prerequisites
 
