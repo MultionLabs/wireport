@@ -73,8 +73,8 @@ Before getting started with wireport, you need to prepare both your CLIENT and G
 
 #### Prerequisites
 
-- **Installed WireGuard client** - required for connecting to the VPN tunnel between GATEWAY, SERVER and CLIENT nodes of wireport ([official WireGuard website](https://www.wireguard.com/install/))
-- **Installed wireport CLI**
+- **Installed WireGuard client**: required for connecting to the VPN tunnel between GATEWAY, SERVER and CLIENT nodes of wireport ([official WireGuard website](https://www.wireguard.com/install/))
+- **Installed wireport CLI**: required for managing services, exposed via ingress-proxy, as well as gateway, server and client nodes
 
 #### wireport CLI Installation
 
@@ -184,6 +184,14 @@ Alternatively, you can allow the app through **System Preferences**:
 
 ### GATEWAY Node Preparation
 
+#### Prerequisites
+
+- **Docker Installation**: The gateway must have Docker installed and running
+- **SSH Access**: The SSH user must have sudo privileges for Docker operations
+- **Public IP**: The gateway must have a public IP address accessible from the Internet
+- **Domain Ownership**: You must own or control the domains you plan to use with wireport
+- **DNS Configuration**: If you plan on exposing local services via your own domain name, you need to configure respective DNS A-records first
+
 Before bootstrapping your wireport gateway node, you need to ensure proper DNS configuration and gateway node firewall setup.
 
 #### DNS Configuration
@@ -252,13 +260,6 @@ sudo firewall-cmd --reload
 - **Azure**: Configure Network Security Groups
 - **DigitalOcean**: Configure Cloud Firewall
 </details>
-
-#### Additional Prerequisites
-
-1. **Docker Installation**: The gateway must have Docker installed and running
-2. **SSH Access**: The SSH user must have sudo privileges for Docker operations
-3. **Public IP**: The gateway must have a public IP address accessible from the Internet
-4. **Domain Ownership**: You must own or control the domains you plan to use with wireport
 
 ## Quick Start
 
