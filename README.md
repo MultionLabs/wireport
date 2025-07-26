@@ -65,6 +65,20 @@
 |:--:|:--:|
 | *Ingress Proxy and VPN tunnel - conceptual scheme* | *Docker Service Discovery - conceptual scheme* |
 
+#### Network Architecture
+
+```
+Internet
+    ↕ 
+Caddy (tcp/udp/http/https forwarding & automated SSL renewal)
+    ↕ 
+[GATEWAY] ↔ WireGuard VPN ↔ [SERVER] ↔ [Docker Containers]
+    ↕ 
+WireGuard VPN
+    ↕ 
+[CLIENT] ↔ [Local Services]
+```
+
 ## Preparation
 
 Before getting started with wireport, you need to prepare both your CLIENT and GATEWAY nodes. This section covers all the prerequisites and setup requirements for each node type.
@@ -431,25 +445,6 @@ When you run `wireport server up`, the following happens:
    - Service discovery agent
 5. **Network Integration**: Connects the server to the wireport-managed WireGuard network, provided by the gateway node
 6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/server` on the server machine
-
-### Network Architecture
-
-```
-Internet
-    ↕ 
-Caddy (tcp/udp/http/https forwarding & automated SSL renewal)
-    ↕ 
-[GATEWAY] ↔ WireGuard VPN ↔ [SERVER] ↔ [Docker Containers]
-    ↕ 
-WireGuard VPN
-    ↕ 
-[CLIENT] ↔ [Local Services]
-```
-
-- **GATEWAY**: Public entry point with reverse proxy and VPN server
-- **SERVER**: Runs your workloads in Docker containers
-- **CLIENT**: Manages the network and exposes local/server-based services
-- **All nodes**: Connected via encrypted WireGuard VPN tunnel
 
 ---
 
