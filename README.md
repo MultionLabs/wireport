@@ -212,14 +212,14 @@ Otherwise, for wireport to correctly expose your local services via publicly ava
 
 For wireport to operate correctly on your gateway node, the following ports must be open and accessible from the Internet on that gateway node:
 
-| Port | Protocol | Purpose | Required |
-|:-----|:---------|:---------|:---------|
-| 22 | TCP | SSH access for wireport installation. If you use custom SSH port, make sure to open that custom port | ✅ Required |
-| 80 | TCP | HTTP traffic and free SSL certificate validation | ✅ Required |
-| 443 | TCP | HTTPS traffic | ✅ Required |
-| 4060 | TCP | wireport control channel | ✅ Required |
-| 51820 | UDP | WireGuard VPN tunnel | ✅ Required |
-| 32420-32421 | TCP/UDP | Reserved ports for exposed services | ✅ Required |
+| Port | Protocol | Purpose |
+|:-----|:---------|:---------|
+| 22 | TCP | SSH access for wireport installation. If you use custom SSH port, make sure to open that custom port |
+| 80 | TCP | HTTP traffic and free SSL certificate validation |
+| 443 | TCP | HTTPS traffic |
+| 4060 | TCP | wireport control channel |
+| 51820 | UDP | WireGuard VPN tunnel |
+| 32420-32421 | TCP/UDP | Reserved ports for exposed services |
 
 ##### Firewall Configuration Examples
 
@@ -433,7 +433,9 @@ When you run `wireport server up`, the following happens:
 ```
 Internet
     ↕ 
-[GATEWAY] ↔ WireGuard VPN ↔ [SERVER] → [Docker Containers]
+Caddy (tcp/udp/http/https forwarding & automated SSL renewal)
+    ↕ 
+[GATEWAY] ↔ WireGuard VPN ↔ [SERVER] ↔ [Docker Containers]
     ↕ 
 WireGuard VPN
     ↕ 
