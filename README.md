@@ -202,7 +202,7 @@ Alternatively, you can allow the app through **System Preferences**:
 #### Prerequisites
 
 - **A small Linux node** with a Public IPv4 address (any 5$/month Ubuntu/Debian/Rocky/Alma-based VPS would typically suffice; [e.g., this one (ref. link)](https://www.vultr.com/?ref=9789124))
-- **Docker Installation**: the gateway must have Docker installed and running
+- **Docker Installation**: the gateway must have Docker installed and running ([e.g., tutorial for Ubuntu](https://docs.docker.com/engine/install/ubuntu/))
 - **SSH Access**: the SSH account used for gateway bootstrapping must have privileges for executing Docker commands
 - **Domain Ownership**: you must own or control the domains you plan to use with wireport
 - **DNS Configuration**: if you plan on exposing local services via your own domain name, you need to configure respective DNS A-records first
