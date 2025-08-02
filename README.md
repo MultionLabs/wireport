@@ -281,7 +281,7 @@ sudo firewall-cmd --reload
 #### Prerequisites
 
 - **A Linux node** (could be a Linux machine behind NAT [e.g., a home server] or a VPS; [e.g., this one (ref. link)](https://www.vultr.com/?ref=9789124))
-- **Docker Installation**: the server must have Docker installed and running
+- **Docker Installation**: the server must have Docker installed and running ([e.g., tutorial for Ubuntu](https://docs.docker.com/engine/install/ubuntu/))
 - **SSH Access**: the SSH account used for server bootstrapping must have privileges for executing Docker commands
 
 ## Quick Start
