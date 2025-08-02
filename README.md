@@ -42,10 +42,10 @@
 ## Features
 
 - SSL/TLS termination with **100% free and automated certificate provisioning and renewal**
-- **Reverse proxy** with support for HTTP(S) and TCP/UDP (Layer-4) (Caddy)
+- **Reverse proxy** with support for HTTP(S) 1/2/3, WebSocket, gRPC (over HTTP/2) and TCP/UDP (Layer-4)
 - **Secure access** to internal docker-based services and admin dashboards
 - **Secure VPN tunneling** (WireGuard)
-- Automatic **service discovery and hostname resolution by Docker container names** (CoreDNS)
+- Automatic **service discovery and hostname resolution by Docker container names**
 - **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
@@ -70,7 +70,7 @@
 ```
 Internet
     ↕ 
-Caddy (tcp/udp/http/https forwarding & automated SSL renewal)
+Caddy (tcp/udp/http/https/websocket forwarding & automated SSL renewal)
     ↕ 
 [GATEWAY] ↔ WireGuard VPN ↔ [SERVER] ↔ [Docker Containers]
     ↕ 
