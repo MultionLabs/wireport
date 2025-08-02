@@ -43,10 +43,11 @@
 
 - SSL/TLS termination with **100% free and automated certificate provisioning and renewal**
 - **Reverse proxy** with support for HTTP(S) 1/2/3, WebSocket, gRPC (over HTTP/2) and TCP/UDP (Layer-4)
+- **Securely connect** locally running services to remote infrastructure for debuggging complex production issues
 - **Secure access** to internal docker-based services and admin dashboards
-- **Secure VPN tunneling** (WireGuard)
-- Automatic **service discovery and hostname resolution by Docker container names**
+- Automatic **service discovery and hostname resolution** (remote service hostname = Docker container name)
 - **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)
+- **Secure VPN tunneling** (WireGuard)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
 - [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
