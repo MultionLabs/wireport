@@ -43,7 +43,7 @@
 
 - SSL/TLS termination with **100% free and automated certificate provisioning and renewal**
 - **Reverse proxy** with support for HTTP(S) 1/2/3, WebSocket, gRPC (over HTTP/2) and TCP/UDP (Layer-4)
-- **Securely connect** locally running services to remote infrastructure for debuggging complex production issues
+- **Securely connect** locally running services to remote infrastructure for debugging complex production issues
 - **Secure access** to internal docker-based services and admin dashboards
 - Automatic **service discovery and hostname resolution** (remote service hostname = Docker container name)
 - **Multiplatform CLI** (Linux, macOS, Windows — ARM64 & AMD64)
@@ -201,9 +201,9 @@ Alternatively, you can allow the app through **System Preferences**:
 
 #### Prerequisites
 
+- **A small Linux node** with a Public IPv4 address (any 5$/month Ubuntu/Debian/Rocky/Alma-based VPS would typically suffice; [e.g., this one (ref. link)](https://www.vultr.com/?ref=9789124))
 - **Docker Installation**: the gateway must have Docker installed and running
 - **SSH Access**: the SSH account used for gateway bootstrapping must have privileges for executing Docker commands
-- **Public IP**: the gateway must have a public IP address accessible from the Internet
 - **Domain Ownership**: you must own or control the domains you plan to use with wireport
 - **DNS Configuration**: if you plan on exposing local services via your own domain name, you need to configure respective DNS A-records first
 
@@ -280,6 +280,7 @@ sudo firewall-cmd --reload
 
 #### Prerequisites
 
+- **A Linux node** (could be a Linux machine behind NAT [e.g., a home server] or a VPS; [e.g., this one (ref. link)](https://www.vultr.com/?ref=9789124))
 - **Docker Installation**: the server must have Docker installed and running
 - **SSH Access**: the SSH account used for server bootstrapping must have privileges for executing Docker commands
 
@@ -438,7 +439,7 @@ When you run `wireport gateway up`, the following happens:
    - wireport control plane API (port 4060/tcp; secure communication with TLS-encryption and mTLS-based auth)
 4. **Network Setup**: Creates a private WireGuard network (10.0.0.0/24)
 5. **Certificate Generation**: Creates client certificates for secure API communication and mTLS
-6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/gateway` on the gateway machineVaasankatu 9, Helsinki, Uusimaa 00500, Finland
+6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/gateway` on the gateway machine
 
 ### Server Bootstrapping
 
