@@ -56,6 +56,10 @@
 |:--:|:--:|
 | *Ingress proxy with free, automated SSL certificate provisioning and renewal* | *Hostname resolution (hostname = docker container name)* |
 
+| <a href="https://youtu.be/9wvxT-QOZ2Q"><img src="https://img.youtube.com/vi/9wvxT-QOZ2Q/maxresdefault.jpg" alt="Quick Setup Tutorial" width="100%"></a> |
+|:--:|
+| *📹 [Watch a quick setup tutorial on YouTube](https://youtu.be/9wvxT-QOZ2Q)* |
+
 ## Key Concepts
 
 - **GATEWAY** – a Linux-based machine with Docker installed, a public IP address, and the following open ports: 80/tcp, 443/tcp, 4060/tcp, 51820/udp and 32420-32421/tcp+udp. This node acts as the ingress gateway and an entry point to your published services.
