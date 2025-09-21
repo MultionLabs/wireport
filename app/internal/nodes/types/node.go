@@ -213,7 +213,7 @@ func (n *Node) GetFormattedCaddyConfig(publicServices []*publicservices.PublicSe
 		var entry string
 
 		if service.PublicProtocol == "tcp" || service.PublicProtocol == "udp" {
-			entry, err = service.AsCaddyConfigEntry()
+			entry, err = service.AsCaddyConfigEntry(n.GatewayPublicIP)
 
 			if err != nil {
 				return nil, err
@@ -221,7 +221,7 @@ func (n *Node) GetFormattedCaddyConfig(publicServices []*publicservices.PublicSe
 
 			layer4PublicServices = append(layer4PublicServices, entry)
 		} else {
-			entry, err = service.AsCaddyConfigEntry()
+			entry, err = service.AsCaddyConfigEntry(n.GatewayPublicIP)
 
 			if err != nil {
 				return nil, err

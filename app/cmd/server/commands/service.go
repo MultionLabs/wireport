@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -28,19 +29,40 @@ var ParamsServiceCmd = &cobra.Command{
 }
 
 func parseAddress(addr string) (protocol, host *string, port *uint16, err error) {
+	addr = strings.TrimSpace(addr)
+
+	if addr == "" {
+		return nil, nil, nil, errors.New("valid host value is required")
+	}
+
 	u, err := url.Parse(addr)
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	protocol = &u.Scheme
+	protocolString := u.Scheme
 
-	if *protocol != "tcp" && *protocol != "udp" && *protocol != "http" && *protocol != "https" {
+	if protocolString == "" {
+		return nil, nil, nil, errors.New("protocol is required")
+	}
+
+	lowerProtocolString := strings.ToLower(protocolString)
+	protocol = &lowerProtocolString
+
+	switch *protocol {
+	case "tcp", "udp", "http", "https":
+		// supported, do nothing
+	default:
 		return nil, nil, nil, errors.New("unsupported protocol")
 	}
 
 	hostname := u.Hostname()
+
+	if hostname == "" {
+		return nil, nil, nil, errors.New("host is required")
+	}
+
 	portString := u.Port()
 
 	host = &hostname
@@ -51,15 +73,18 @@ func parseAddress(addr string) (protocol, host *string, port *uint16, err error)
 			portString = "80"
 		case "https":
 			portString = "443"
+		default:
+			return nil, nil, nil, errors.New("port is required for layer 4 services")
 		}
 	}
 
 	portInt, err := strconv.Atoi(portString)
-	portUint16 := uint16(portInt)
 
-	if err != nil {
-		return nil, nil, nil, err
+	if err != nil || portInt < 1 || portInt > 65535 {
+		return nil, nil, nil, errors.New("invalid port")
 	}
+
+	portUint16 := uint16(portInt)
 
 	port = &portUint16
 
@@ -97,6 +122,12 @@ var PublishServiceCmd = &cobra.Command{
 
 		if *publicPort == config.Config.ControlServerPort {
 			cmd.Printf("❌ Error: port %d is reserved for wireport control plane and cannot be used for publishing services\n", config.Config.ControlServerPort)
+			return
+		}
+
+		if (*localProtocol == "tcp" && *publicProtocol != "tcp") ||
+			(*localProtocol == "udp" && *publicProtocol != "udp") {
+			cmd.Printf("❌ Error: local protocol and public protocol must be the same for layer 4 services (tcp -> tcp or udp -> udp)\n")
 			return
 		}
 

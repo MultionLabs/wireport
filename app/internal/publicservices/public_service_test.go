@@ -30,7 +30,7 @@ http://example.com {
     reverse_proxy http://localhost:8080
 }
 `
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -60,7 +60,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -91,7 +91,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -119,7 +119,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -147,7 +147,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -175,7 +175,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -203,7 +203,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -233,7 +233,7 @@ https://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -256,12 +256,12 @@ func TestPublicService_AsCaddyConfigEntry_Layer7_With_https_Custom_Public_Port(t
 	}
 
 	expected := `
-example.com:8443 {
+https://example.com:8443 {
     reverse_proxy http://localhost:8080
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -289,7 +289,7 @@ http://example.com {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -312,12 +312,12 @@ func TestPublicService_AsCaddyConfigEntry_Layer7_With_http_Custom_Public_Port(t 
 	}
 
 	expected := `
-example.com:8080 {
+http://example.com:8080 {
     reverse_proxy http://localhost:8080
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -342,7 +342,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_No_BlockParams(t *testing.
 	}
 
 	expected := `
-127.0.0.1:8080 {
+tcp/127.0.0.1:8080 {
     route {
         proxy {
             upstream tcp/192.168.1.100:8080
@@ -351,7 +351,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_No_BlockParams(t *testing.
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -374,7 +374,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_1_BlockParam(t *testing.T)
 	}
 
 	expected := `
-127.0.0.1:8080 {
+tcp/127.0.0.1:8080 {
     route {
         proxy {
             upstream tcp/192.168.1.100:8080 {
@@ -385,7 +385,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_1_BlockParam(t *testing.T)
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -408,7 +408,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_Multiple_BlockParams(t *te
 	}
 
 	expected := `
-127.0.0.1:8080 {
+tcp/127.0.0.1:8080 {
     route {
         proxy {
             upstream tcp/192.168.1.100:8080 {
@@ -420,7 +420,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_Multiple_BlockParams(t *te
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -443,7 +443,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_udp_to_udp(t *testing.T) {
 	}
 
 	expected := `
-127.0.0.1:8080 {
+udp/127.0.0.1:8080 {
     route {
         proxy {
             upstream udp/192.168.1.100:8080
@@ -452,7 +452,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_udp_to_udp(t *testing.T) {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -475,7 +475,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_tcp_to_tcp(t *testing.T) {
 	}
 
 	expected := `
-127.0.0.1:8080 {
+tcp/127.0.0.1:8080 {
     route {
         proxy {
             upstream tcp/192.168.1.100:8080
@@ -484,7 +484,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_tcp_to_tcp(t *testing.T) {
 }
 `
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -509,7 +509,7 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_tcp_to_udp(t *testing.T) {
 	expectedResult := ""
 	expectedError := "for layer 4, local protocol and public protocol must be the same (udp -> udp or tcp -> tcp)"
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err == nil {
 		t.Errorf("expected error, got %v", err)
@@ -538,7 +538,208 @@ func TestPublicService_AsCaddyConfigEntry_Layer4_With_udp_to_tcp(t *testing.T) {
 	expectedResult := ""
 	expectedError := "for layer 4, local protocol and public protocol must be the same (udp -> udp or tcp -> tcp)"
 
-	got, err := service.AsCaddyConfigEntry()
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err == nil {
+		t.Errorf("expected error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expectedResult) {
+		t.Errorf("expected empty string, got %s", got)
+	}
+
+	if err.Error() != expectedError {
+		t.Errorf("expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_Public_Host_Is_Gateway_Public_IP(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "localhost",
+		LocalPort:      8080,
+		PublicProtocol: "http",
+		PublicHost:     "123.123.123.123",
+		PublicPort:     8080,
+		Params:         []PublicServiceParam{},
+	}
+
+	// caddy won't see the network interface for the gateway public IP from inside docker containers, so we use 0.0.0.0
+	expected := `
+:8080 {
+    reverse_proxy http://localhost:8080
+}
+`
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expected) {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_Local_Host_Is_Gateway_Public_IP(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "123.123.123.123",
+		LocalPort:      8080,
+		PublicProtocol: "http",
+		PublicHost:     "example.com",
+		PublicPort:     8080,
+		Params:         []PublicServiceParam{},
+	}
+
+	// caddy won't see the network interface for the gateway public IP from inside docker containers, so we use 0.0.0.0
+	expected := `
+http://example.com:8080 {
+    reverse_proxy http://0.0.0.0:8080
+}
+`
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expected) {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_HTTPS_IP_Error(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "localhost",
+		LocalPort:      8080,
+		PublicProtocol: "https",
+		PublicHost:     "192.168.1.100", // IP address - any HTTPS with IP is now rejected
+		PublicPort:     443,             // Even standard port is rejected for IP addresses
+		Params:         []PublicServiceParam{},
+	}
+
+	expectedResult := ""
+	expectedError := "https on ip address is not supported"
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err == nil {
+		t.Errorf("expected error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expectedResult) {
+		t.Errorf("expected empty string, got %s", got)
+	}
+
+	if err.Error() != expectedError {
+		t.Errorf("expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_HTTPS_Domain_Standard_Port_Allowed(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "localhost",
+		LocalPort:      8080,
+		PublicProtocol: "https",
+		PublicHost:     "example.com",
+		PublicPort:     443,
+		Params:         []PublicServiceParam{},
+	}
+
+	expected := `
+https://example.com {
+    reverse_proxy http://localhost:8080
+}
+`
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expected) {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_HTTPS_Domain_Custom_Port_Allowed(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "localhost",
+		LocalPort:      8080,
+		PublicProtocol: "https",
+		PublicHost:     "example.com",
+		PublicPort:     8443,
+		Params:         []PublicServiceParam{},
+	}
+
+	expected := `
+https://example.com:8443 {
+    reverse_proxy http://localhost:8080
+}
+`
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expected) {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_Empty_Local_Host_Error(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "",
+		LocalPort:      8080,
+		PublicProtocol: "http",
+		PublicHost:     "example.com",
+		PublicPort:     80,
+		Params:         []PublicServiceParam{},
+	}
+
+	expectedResult := ""
+	expectedError := "local host cannot be empty"
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
+
+	if err == nil {
+		t.Errorf("expected error, got %v", err)
+	}
+
+	if removeSpaces(got) != removeSpaces(expectedResult) {
+		t.Errorf("expected empty string, got %s", got)
+	}
+
+	if err.Error() != expectedError {
+		t.Errorf("expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestPublicService_AsCaddyConfigEntry_Empty_Public_Host_Error(t *testing.T) {
+	service := PublicService{
+		LocalProtocol:  "http",
+		LocalHost:      "localhost",
+		LocalPort:      8080,
+		PublicProtocol: "http",
+		PublicHost:     "",
+		PublicPort:     80,
+		Params:         []PublicServiceParam{},
+	}
+
+	expectedResult := ""
+	expectedError := "public host cannot be empty"
+
+	got, err := service.AsCaddyConfigEntry("123.123.123.123")
 
 	if err == nil {
 		t.Errorf("expected error, got %v", err)
