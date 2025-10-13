@@ -195,15 +195,15 @@ func (a *APICommandsService) ServiceUnpublish(publicProtocol string, publicHost 
 	return serviceUnpublishResponseDTO, nil
 }
 
-func (a *APICommandsService) ServiceList() (types.ExecResponseDTO, error) {
-	serviceListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceListRequestDTO, types.ExecResponseDTO](
+func (a *APICommandsService) ServiceList() (types.ServiceListRequestDTO, error) {
+	serviceListResponseDTO, err := makeSecureRequestWithResponse[types.ServiceListRequestDTO, types.ServiceListRequestDTO](
 		a, "POST", "/commands/service/list",
 		types.ServiceListRequestDTO{},
 	)
 
 	if err != nil {
 		logger.Error("Failed to marshal request body: %v", err)
-		return types.ExecResponseDTO{}, err
+		return types.ServiceListRequestDTO{}, err
 	}
 
 	return serviceListResponseDTO, nil

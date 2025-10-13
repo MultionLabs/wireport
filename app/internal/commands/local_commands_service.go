@@ -21,6 +21,7 @@ import (
 	node_types "wireport/internal/nodes/types"
 	"wireport/internal/publicservices"
 	"wireport/internal/ssh"
+	"wireport/internal/utils"
 
 	"github.com/google/uuid"
 )
@@ -536,7 +537,7 @@ func (s *LocalCommandsService) ServerRemove(stdOut io.Writer, errOut io.Writer, 
 	fmt.Fprintf(stdOut, "Server node '%s' removed successfully\n", serverNodeID)
 }
 
-func (s *LocalCommandsService) ServerStart(stdOut io.Writer, errOut io.Writer) {
+func (s *LocalCommandsService) ServerStart(apiCommandsService *APICommandsService, stdOut io.Writer, errOut io.Writer) {
 	fmt.Fprintf(stdOut, "Starting wireport server\n")
 
 	currentNode, err := s.NodesRepository.GetCurrentNode()
@@ -564,6 +565,159 @@ func (s *LocalCommandsService) ServerStart(stdOut io.Writer, errOut io.Writer) {
 
 		if err != nil {
 			fmt.Fprintf(errOut, "Failed to ensure docker network is attached to all containers: %v\n", err)
+		}
+
+		//
+
+		reslt, err := apiCommandsService.ServiceList()
+
+		if err != nil {
+			fmt.Fprintf(errOut, "Failed to get services: %v\n", err)
+		} else {
+			fmt.Fprintf(stdOut, "Retrieved %d services from gateway node\n", len(reslt.Services))
+
+			//
+
+			labelsByContainerName, err := dockerutils.ListAllContainerLabels()
+
+			if err != nil {
+				fmt.Fprintf(errOut, "Failed to list all container labels: %v\n", err)
+			} else {
+				fmt.Fprintf(stdOut, "Retrieved labels for %d containers\n", len(labelsByContainerName))
+
+				// some labels define services, published on the gateway node
+				// here we compare list of actually published services with list of services defined by labels
+				// if there are any services that are defined by labels but not published, we publish them
+				// if there are any services that are published but not defined by labels, we unpublish them
+				// we only manage serices that are published by the current server node
+
+				currentNode, err := s.NodesRepository.GetCurrentNode()
+
+				if err != nil {
+					fmt.Fprintf(errOut, "Failed to get current node: %v\n", err)
+					return
+				}
+
+				// get all services published by the current server node - to only work with those
+
+				servicesPublishedByCurrentNode := []*publicservices.PublicService{}
+
+				for _, service := range reslt.Services {
+					if service.PublishedByNodeID != nil && *service.PublishedByNodeID == currentNode.ID {
+						servicesPublishedByCurrentNode = append(servicesPublishedByCurrentNode, service)
+					}
+				}
+
+				fmt.Fprintf(stdOut, "Retrieved %d services published by current node\n", len(servicesPublishedByCurrentNode))
+
+				// labels that we look for in docker-compose files to define wireport services
+				const localAddressLabel = "wireport.service.local"
+				const publicAddressLabel = "wireport.service.public"
+
+				// get a list of services to unpublish
+				servicesToUnpublish := []*publicservices.PublicService{}
+
+				for _, service := range servicesPublishedByCurrentNode {
+					serviceShouldBeUnpublished := false
+
+					if labels, ok := labelsByContainerName[service.LocalHost]; !ok {
+						serviceShouldBeUnpublished = true
+					} else {
+						// check if the service is still defined by labels
+						if labels[localAddressLabel] == "" || labels[publicAddressLabel] == "" {
+							serviceShouldBeUnpublished = true
+						}
+					}
+
+					if serviceShouldBeUnpublished {
+						fmt.Fprintf(stdOut, "Service %s://%s:%d is published by the node, but labels are not set anymore - to be unpublished\n", service.LocalProtocol, service.LocalHost, service.LocalPort)
+						servicesToUnpublish = append(servicesToUnpublish, service)
+					}
+				}
+
+				// get a list of services to publish
+				servicesToPublish := []*publicservices.PublicService{}
+
+				for containerName, containerLabels := range labelsByContainerName {
+					// check if service with local host matching container name is published by this node
+					alreadyPublishedByThisNode := false
+					for _, service := range servicesPublishedByCurrentNode {
+						if service.LocalHost == containerName &&
+							service.PublishedByNodeID != nil &&
+							*service.PublishedByNodeID == currentNode.ID {
+							alreadyPublishedByThisNode = true
+							break
+						}
+					}
+
+					if alreadyPublishedByThisNode {
+						continue
+					}
+
+					// service has not been published by this node yet, check if we can publish it
+
+					localAddress := containerLabels[localAddressLabel]
+					publicAddress := containerLabels[publicAddressLabel]
+
+					if localAddress == "" || publicAddress == "" {
+						continue
+					}
+
+					localProtocol, localHost, localPort, err := utils.ParseAddress(localAddress)
+
+					if err != nil {
+						fmt.Fprintf(errOut, "Can not publish service %s: failed to parse local address: %v\n", containerName, err)
+						continue
+					}
+
+					if *localHost != containerName {
+						fmt.Fprintf(stdOut, "Can not publish service %s: local host %s does not match container name %s - the service definition is not valid, skipping\n", containerName, *localHost, containerName)
+						continue
+					}
+
+					publicProtocol, publicHost, publicPort, err := utils.ParseAddress(publicAddress)
+
+					if err != nil {
+						fmt.Fprintf(errOut, "Can not publish service %s: failed to parse public address: %v\n", containerName, err)
+						continue
+					}
+
+					service := &publicservices.PublicService{
+						PublishedByNodeID: &currentNode.ID,
+						LocalHost:         *localHost,
+						LocalProtocol:     *localProtocol,
+						LocalPort:         *localPort,
+						PublicProtocol:    *publicProtocol,
+						PublicHost:        *publicHost,
+						PublicPort:        *publicPort,
+					}
+					servicesToPublish = append(servicesToPublish, service)
+				}
+
+				// now batch unpublish and publish services
+
+				for _, service := range servicesToUnpublish {
+					_, err := apiCommandsService.ServiceUnpublish(service.PublicProtocol, service.PublicHost, service.PublicPort)
+
+					if err != nil {
+						fmt.Fprintf(errOut, "Failed to unpublish service %s://%s:%d: %v\n", service.PublicProtocol, service.PublicHost, service.PublicPort, err)
+						continue
+					}
+
+					fmt.Fprintf(stdOut, "Unpublished service %s://%s:%d\n", service.PublicProtocol, service.PublicHost, service.PublicPort)
+				}
+
+				for _, service := range servicesToPublish {
+					publicationResult, err := apiCommandsService.ServicePublish(service.LocalProtocol, service.LocalHost, service.LocalPort, service.PublicProtocol, service.PublicHost, service.PublicPort)
+
+					if err != nil || (publicationResult.Stderr != "" && len(publicationResult.Stderr) > 0) {
+						fmt.Fprintf(errOut, "Failed to publish service %s://%s:%d: -> %s://%s:%d: %v\n", service.LocalProtocol, service.LocalHost, service.LocalPort, service.PublicProtocol, service.PublicHost, service.PublicPort, err)
+						continue
+					}
+
+					fmt.Fprintf(stdOut, "Published service %s://%s:%d -> %s://%s:%d\n", service.LocalProtocol, service.LocalHost, service.LocalPort, service.PublicProtocol, service.PublicHost, service.PublicPort)
+				}
+			}
 		}
 
 		time.Sleep(time.Second * 30)
@@ -1083,14 +1237,16 @@ func (s *LocalCommandsService) ClientList(requestFromNodeID *string, stdOut io.W
 
 // service
 
-func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer, localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
+func (s *LocalCommandsService) ServicePublish(stdOut io.Writer, errOut io.Writer, requestFromNodeID *string,
+	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
 	err := s.PublicServicesRepository.Save(&publicservices.PublicService{
-		LocalProtocol:  localProtocol,
-		LocalHost:      localHost,
-		LocalPort:      localPort,
-		PublicProtocol: publicProtocol,
-		PublicHost:     publicHost,
-		PublicPort:     publicPort,
+		PublishedByNodeID: requestFromNodeID,
+		LocalProtocol:     localProtocol,
+		LocalHost:         localHost,
+		LocalPort:         localPort,
+		PublicProtocol:    publicProtocol,
+		PublicHost:        publicHost,
+		PublicPort:        publicPort,
 	})
 
 	if err != nil {

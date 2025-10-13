@@ -265,3 +265,39 @@ func RemoveDockerNetwork() error {
 
 	return nil
 }
+
+func ListAllContainerLabels() (map[string]map[string]string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer cli.Close()
+
+	containers, err := cli.ContainerList(context.Background(), container.ListOptions{
+		All: true,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	containerLabels := make(map[string]map[string]string)
+
+	for _, container := range containers {
+		// container name without leading slash
+		containerName := strings.TrimPrefix(container.Names[0], "/")
+
+		containerJSON, err := cli.ContainerInspect(context.Background(), container.ID)
+
+		if err != nil {
+			logger.Error("Failed to inspect container %s: %v", containerName, err)
+			continue
+		}
+
+		containerLabels[containerName] = containerJSON.Config.Labels
+	}
+
+	return containerLabels, nil
+}

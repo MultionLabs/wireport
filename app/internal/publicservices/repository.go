@@ -15,6 +15,22 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 func (r *Repository) Save(service *PublicService) error {
+	// For PublicService with composite primary key, we need to handle this carefully
+	// First try to find existing record
+	var existingService PublicService
+	err := r.db.Where("public_protocol = ? AND public_host = ? AND public_port = ?",
+		service.PublicProtocol, service.PublicHost, service.PublicPort).First(&existingService).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// No existing record, create new one
+			return r.db.Create(service).Error
+		}
+		return err
+	}
+
+	// Record exists, update it with all fields including PublishedByNodeID
+	service.CreatedAt = existingService.CreatedAt // Preserve original creation time
 	return r.db.Save(service).Error
 }
 

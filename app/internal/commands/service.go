@@ -327,8 +327,8 @@ func (s *Service) ServerStart(stdOut io.Writer, errOut io.Writer) {
 			},
 			{
 				Roles: []types.NodeRole{types.NodeRoleServer},
-				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServerStart(stdOut, errOut)
+				Handler: func(_ *types.Node, apiCommandsService *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
+					local.ServerStart(apiCommandsService, stdOut, errOut)
 					return nil, nil
 				},
 			},
@@ -476,7 +476,7 @@ func (s *Service) ClientList(requestFromNodeID *string, stdOut io.Writer, errOut
 
 // service commands
 
-func (s *Service) ServicePublish(stdOut io.Writer, errOut io.Writer,
+func (s *Service) ServicePublish(stdOut io.Writer, errOut io.Writer, requestFromNodeID *string,
 	localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) {
 	s.executeCommand(
 		stdOut,
@@ -485,7 +485,7 @@ func (s *Service) ServicePublish(stdOut io.Writer, errOut io.Writer,
 			{
 				Roles: []types.NodeRole{types.NodeRoleGateway},
 				Handler: func(_ *types.Node, _ *APICommandsService, local *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					local.ServicePublish(stdOut, errOut, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
+					local.ServicePublish(stdOut, errOut, requestFromNodeID, localProtocol, localHost, localPort, publicProtocol, publicHost, publicPort)
 					return nil, nil
 				},
 			},
@@ -538,8 +538,8 @@ func (s *Service) ServiceList(stdOut io.Writer, errOut io.Writer) {
 			{
 				Roles: []types.NodeRole{types.NodeRoleClient},
 				Handler: func(_ *types.Node, api *APICommandsService, _ *LocalCommandsService) (*commandstypes.ExecResponseDTO, error) {
-					execResponseDTO, err := api.ServiceList()
-					return &execResponseDTO, err
+					serviceListResponseDTO, err := api.ServiceList()
+					return &serviceListResponseDTO.ExecResponseDTO, err
 				},
 			},
 		},

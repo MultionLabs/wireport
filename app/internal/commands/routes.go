@@ -31,7 +31,7 @@ type Services struct {
 type CommandHandler func(stdOut, errOut *bytes.Buffer) error
 
 // common request validation
-func validateRequest(w http.ResponseWriter, r *http.Request, operation string) bool {
+func validateRequest(w http.ResponseWriter, r *http.Request, operation string, requestFromNodeID string) bool {
 	if r.TLS == nil {
 		logger.Error("[%s] %s request is not over TLS; dropping request", r.Method, operation)
 		http.Error(w, "", http.StatusBadRequest)
@@ -44,20 +44,28 @@ func validateRequest(w http.ResponseWriter, r *http.Request, operation string) b
 		return false
 	}
 
+	if requestFromNodeID == "" {
+		logger.Error("[%s] Can not identify request source node ID for %s", r.Method, operation)
+		http.Error(w, "", http.StatusBadRequest)
+		return false
+	}
+
 	return true
 }
 
 // a generic handler for requests (request body validation and parsing)
-func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(*T, *bytes.Buffer, *bytes.Buffer) error, customResponsePacker func(stdOut, errOut *bytes.Buffer) (any, error)) {
+func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(string, *T, *bytes.Buffer, *bytes.Buffer) error, customResponsePacker func(stdOut, errOut *bytes.Buffer) (any, error)) {
 	operation := r.URL.Path
-	if !validateRequest(w, r, operation) {
+	requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+
+	if !validateRequest(w, r, operation, requestFromNodeID) {
 		return
 	}
 
 	var requestDTO T
 	err := json.NewDecoder(r.Body).Decode(&requestDTO)
 	if err != nil {
-		logger.Error("[%s] Failed to parse %s request: %v", r.Method, operation, err)
+		logger.Error("[%s] [from node: %s] Failed to parse %s request: %v", r.Method, requestFromNodeID, operation, err)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -65,9 +73,10 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 	stdOut := bytes.NewBufferString("")
 	errOut := bytes.NewBufferString("")
 
-	err = handler(&requestDTO, stdOut, errOut)
+	err = handler(requestFromNodeID, &requestDTO, stdOut, errOut)
+
 	if err != nil {
-		logger.Error("[%s] Failed to execute %s: %v", r.Method, operation, err)
+		logger.Error("[%s] [from node: %s] Failed to execute %s: %v", r.Method, requestFromNodeID, operation, err)
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -78,7 +87,7 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 		response, err = customResponsePacker(stdOut, errOut)
 
 		if err != nil {
-			logger.Error("[%s] Failed to pack %s response: %v", r.Method, operation, err)
+			logger.Error("[%s] [from node: %s] Failed to pack %s response: %v", r.Method, requestFromNodeID, operation, err)
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
@@ -91,15 +100,15 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		logger.Error("[%s] Failed to encode %s response: %v", r.Method, operation, err)
+		logger.Error("[%s] [from node: %s] Failed to encode %s response: %v", r.Method, requestFromNodeID, operation, err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	if execResp, ok := response.(types.ExecResponseDTO); ok {
-		logger.Info("[%s] %s response: stdout: %v, stderr: %v", r.Method, operation, execResp.Stdout[:min(len(execResp.Stdout), 20)], execResp.Stderr[:min(len(execResp.Stderr), 20)])
+		logger.Info("[%s] [from node: %s] %s response: stdout: %v, stderr: %v", r.Method, requestFromNodeID, operation, execResp.Stdout[:min(len(execResp.Stdout), 20)], execResp.Stderr[:min(len(execResp.Stderr), 20)])
 	} else {
-		logger.Info("[%s] %s response: custom response type", r.Method, operation)
+		logger.Info("[%s] [from node: %s] %s response: custom response type", r.Method, requestFromNodeID, operation)
 	}
 }
 
@@ -126,15 +135,15 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 	// Server routes
 	mux.HandleFunc("/commands/server/new", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServerNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ServerNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServerNew(stdOut, errOut, req.Force, req.Quiet, req.DockerSubnet)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/server/remove", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServerRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			if req.NodeID != r.TLS.PeerCertificates[0].Subject.CommonName {
+		handleRequestWithBody(w, r, func(requestFromNodeID string, req *types.ServerRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			if req.NodeID != requestFromNodeID {
 				logger.Error("[%s] Server can only remove itself; node removal request came from a different node: requested node ID: %s, current node ID: %s", r.Method, req.NodeID, r.TLS.PeerCertificates[0].Subject.CommonName)
 				return ErrFailedToCreateServerNode
 			}
@@ -144,8 +153,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 	})
 
 	mux.HandleFunc("/commands/server/list", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(_ *types.ServerListRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+		handleRequestWithBody(w, r, func(requestFromNodeID string, _ *types.ServerListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServerList(&requestFromNodeID, stdOut, errOut)
 			return nil
 		}, func(stdOut, errOut *bytes.Buffer) (any, error) {
@@ -167,15 +175,14 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 	// Client routes
 	mux.HandleFunc("/commands/client/new", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ClientNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ClientNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ClientNew(stdOut, errOut, req.JoinRequest, req.Quiet, req.Wait)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/client/list", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(_ *types.ClientListRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
+		handleRequestWithBody(w, r, func(requestFromNodeID string, _ *types.ClientListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ClientList(&requestFromNodeID, stdOut, errOut)
 			return nil
 		}, nil)
@@ -183,43 +190,57 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 
 	// Service routes
 	mux.HandleFunc("/commands/service/publish", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServicePublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
-			services.CommandsService.ServicePublish(stdOut, errOut, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
+		handleRequestWithBody(w, r, func(requestFromNodeID string, req *types.ServicePublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.ServicePublish(stdOut, errOut, &requestFromNodeID, req.LocalProtocol, req.LocalHost, req.LocalPort, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/unpublish", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServiceUnpublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ServiceUnpublishRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceUnpublish(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/list", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(_ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, _ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceList(stdOut, errOut)
 			return nil
-		}, nil)
+		}, func(stdOut, errOut *bytes.Buffer) (any, error) {
+			services, err := services.PublicServicesRepository.GetAll()
+
+			if err != nil {
+				return nil, err
+			}
+
+			return types.ServiceListRequestDTO{
+				ExecResponseDTO: types.ExecResponseDTO{
+					Stdout: strings.TrimSpace(stdOut.String()),
+					Stderr: strings.TrimSpace(errOut.String()),
+				},
+				Services: services,
+			}, nil
+		})
 	})
 
 	// Service parameter routes
 	mux.HandleFunc("/commands/service/params/new", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServiceParamNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ServiceParamNewRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamNew(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/params/remove", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServiceParamRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ServiceParamRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamRemove(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort, req.ParamType, req.ParamValue)
 			return nil
 		}, nil)
 	})
 
 	mux.HandleFunc("/commands/service/params/list", func(w http.ResponseWriter, r *http.Request) {
-		handleRequestWithBody(w, r, func(req *types.ServiceParamListRequestDTO, stdOut, errOut *bytes.Buffer) error {
+		handleRequestWithBody(w, r, func(_ string, req *types.ServiceParamListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceParamList(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		}, nil)

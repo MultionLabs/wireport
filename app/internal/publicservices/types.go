@@ -18,6 +18,13 @@ const (
 )
 
 type PublicService struct {
+	/*
+			Node id of the node that published the service
+			If set to server node id, the given server node is allowed to unpublish the service
+		 	Manually published services have this field set to nil (or to the node id of the client who published it?)
+	*/
+	PublishedByNodeID *string `gorm:"type:text"`
+
 	LocalProtocol string `gorm:"type:text;not null"`    // http, https, udp, tcp
 	LocalHost     string `gorm:"type:text;not null"`    // domain, ip
 	LocalPort     uint16 `gorm:"type:integer;not null"` // port
@@ -115,6 +122,12 @@ func (s *PublicService) AsCaddyConfigEntry(gatewayPublicIP string) (result strin
 `, publicHostname, reverseProxy)
 	case "udp", "tcp":
 		upstream := strings.TrimSpace(fmt.Sprintf("upstream %s/%s:%d %s", s.LocalProtocol, localHost, s.LocalPort, formatBlockParams(s.Params, 16, 12)))
+		/*
+			publicHost is always 0.0.0.0 for layer 4 host:
+			- if publicHost is a DNS name, resolution happens on the client side, not affecting caddy config for this sake
+			- it can not be a DNS name, pointing to a custom internal-network IP either -- caddy won't bind to it
+		*/
+		publicHost := "0.0.0.0"
 
 		result = fmt.Sprintf(`
         %s/%s:%d {

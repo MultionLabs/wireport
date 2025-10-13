@@ -75,6 +75,8 @@ type ServiceParamListRequestDTO struct {
 }
 
 type ServiceListRequestDTO struct {
+	ExecResponseDTO
+	Services []*publicservices.PublicService `json:"services"`
 }
 
 // join requests

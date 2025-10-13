@@ -32,8 +32,6 @@ LOCAL_PORT=8000
 PUBLIC_SERVICE=tcp://${PUBLIC_HOST}:${PUBLIC_PORT}
 LOCAL_SERVICE=tcp://${LOCAL_HOST}:${LOCAL_PORT}
 
-export WIREPORT_PROFILE=dev-meta
-
 echo "🧪 Wireport TCP Tunnel Test"
 echo "================================"
 echo "Public:  ${PUBLIC_SERVICE}"

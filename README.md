@@ -25,16 +25,15 @@
 
 <div align="center">
 
-[![Sponsor me on GitHub](https://img.shields.io/badge/Sponsor-💖-pink?style=for-the-badge)](https://github.com/sponsors/maxskorr)  
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
-[![Architecture](https://img.shields.io/badge/Architecture-AMD64%20%7C%20ARM64-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)
+[![Architecture](https://img.shields.io/badge/Architecture-AMD64%20%7C%20ARM64-lightgrey.svg?style=for-the-badge)](https://github.com/MultionLabs/wireport/releases)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT) [![Sponsor me on GitHub](https://img.shields.io/badge/Sponsor-💖-pink?style=for-the-badge)](https://github.com/sponsors/maxskorr)
 
 </div>
 
 ---
 
-**wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private local and Docker-based services to the Internet, with free, automatically renewable SSL certificates. Powered by WireGuard (secure networking), CoreDNS and Caddy (performant reverse proxy).
+**wireport** is a self-hosted ingress proxy and VPN tunnel that securely exposes private local and Docker-based services to the Internet, with free, automatically renewable SSL certificates.
 
 - Exposing local and Docker-based services running in a local network (e.g., on the local machine, on a corporate network, on a NAS, or on a home server) to the Internet
 - Secure tunneling into remote development/staging/production environments to facilitate debugging and troubleshooting of remote Docker-based services
@@ -50,6 +49,7 @@
 - **Secure VPN tunneling** (WireGuard)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
+- Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels)
 - [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
 
 | ![Ingress Proxy](assets/wireport-ingress-proxy-screenshot.png) | ![Hostname Resolution](assets/wireport-hostname-resolution-screenshot.png) |
@@ -464,6 +464,34 @@ When you run `wireport server up`, the following happens:
 
 ---
 
+## Tunnel configuration via docker labels
+
+wireport supports declarative tunnel configuration via **docker labels**. When preparing a service for launching on a [SERVER node](#server-node-preparation), add the following labels to its docker-compose file definition:
+
+- `wireport.service.local` - local address of the service that should be exposed to the Internet; the service hostname in the address should match the container name of your docker service
+- `wireport.service.public` - public address of the service; the service will be available at this address; make sure to [configure DNS](#dns-configuration) to point to your GATEWAY node for domain resolution to work correctly
+
+**Sample docker-compose file for Grafana dashboard:**
+
+```yaml
+version: '3'
+
+services:
+  dev-grafana:
+    image: grafana/grafana-oss:12.0.3
+    env_file:
+      - path: dev-grafana.env
+        required: true
+    labels:
+      wireport.service.local: http://infra-dev-grafana-1:3000
+      wireport.service.public: https://dev-grafana.my-services.com
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+```
+
 ## Other useful commands
 
 | Purpose | Command |
@@ -496,58 +524,78 @@ If you encounter issues:
 4. Check pingability of private services from inside GATEWAY, SERVER and CLIENT nodes
 5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to the `wireport-net` Docker network (wireport agent manages this automatically).
 
-<details>
-<summary>Test commands for TCP & UDP forwarding</summary>
+## Tests for HTTP, TCP, UDP tunnelling
 
-For testing UDP forwarding, on the SERVER node run:
+For testing HTTP, UDP, TCP tunnelling, you can use the automated test scripts provided in the [`tests/`](tests/) folder.
 
-```bash
-docker run --rm -d --name udp-server alpine sh -c "apk add --no-cache socat && socat -v UDP-RECV:3000 STDOUT"
-```
-
-- this command will start a docker container, called `udp-server`.
-
-Now, send some test UDP packets from your CLIENT device, e.g.:
+Before running any of the tests, you may want to specify wireport profile (if you're using several profiles on your machine), e.g.:
 
 ```bash
-echo "hello via UDP" | nc -u 10.0.0.3 3000
+export WIREPORT_PROFILE=development
 ```
-(for a test inside the wireport network)
 
-or
+### Usage example:
 
 ```bash
-echo "hello via UDP" | nc -u 140.120.110.10 32420
+./tests/http-tunnel.sh 140.120.110.10 -v
 ```
-(for a test, involving publicly exposed services, e.g. `wireport service publish --public udp://0.0.0.0:32420 --local udp://udp-server:3000` or so)
 
-The logs of `udp-server` container on your SERVER node should log the test data.
+here:
+- `140.120.110.10` is the public IP of the GATEWAY node
+- `-v` is a flag, enabling verbose logging
 
-For testing TCP forwarding, on the SERVER node run:
+Each test:
+- Starts a local server on your CLIENT node (your local machine)
+- Publishes a service on the GATEWAY node to expose the local server to the Internet
+- Tests connectivity with 3 requests that travel CLIENT → [over Internet] → GATEWAY → [over WireGuard VPN] → CLIENT
+- Verifies responses and tears down the server automatically
+
+Sample output for a successful http test run:
 
 ```bash
-docker run --rm -d --name tcp-server alpine sh -c "while true; do nc -lk -p 3000; done"
+🧪 Wireport HTTP Tunnel Test
+================================
+Public:  http://140.120.110.10:32421
+Local:   http://10.0.0.2:8080
+Mode:    VERBOSE
+
+📋 Step 1: Checking wireport version...
+wireport version v0.9.7-dev (commit: 40b131b, date: 2025-10-05T19:07:07Z, arch: amd64, os: linux, package: unknown); db path: /Users/multionlabs/.wireport/dev-meta/wireport.db; profile: development
+
+📋 Step 2: Publishing service...
+✅ Service http://10.0.0.2:8080 is now published on
+
+                http://140.120.110.10:32421
+✅ Service published successfully
+
+📋 Step 3: Starting local HTTP server...
+✅ Local HTTP server started (PID: 74849)
+
+📋 Step 4: Waiting for service to be ready...
+  Waiting 3 seconds for service to initialize...
+
+📋 Step 5: Testing HTTP tunnel connectivity...
+  Test 1/3: [HTTP-SERVER] "GET / HTTP/1.1" 200 -
+✅ PASS
+    Response: OK
+  Test 2/3: [HTTP-SERVER] "GET / HTTP/1.1" 200 -
+✅ PASS
+    Response: OK
+  Test 3/3: [HTTP-SERVER] "GET / HTTP/1.1" 200 -
+✅ PASS
+    Response: OK
+
+📋 Step 6: Cleaning up...
+  Unpublishing service...
+✅ Service http://140.120.110.10:32421 is now unpublished
+  Stopping local server (PID: 74849)...
+✅ Cleanup completed
+
+📊 Test Results
+===============
+Tests passed: 3/3
+🎉 ALL TESTS PASSED! HTTP tunnel is working correctly.
 ```
-
-- this command will start a docker container, called `tcp-server`.
-
-Now, send some test TCP packets from your CLIENT device, e.g.:
-
-```bash
-echo "hello via TCP" | nc 10.0.0.3 3000
-```
-(for a test inside the wireport network)
-
-or
-
-```bash
-echo "hello via TCP" | nc 140.120.110.10 32420
-```
-(for a test, involving publicly exposed services, e.g. `wireport service publish --public tcp://0.0.0.0:32420 --local tcp://tcp-server:3000` or so)
-
-The logs of `tcp-server` container on your SERVER node should log the test data.
-
-</details>
 
 ## Sponsorship
 

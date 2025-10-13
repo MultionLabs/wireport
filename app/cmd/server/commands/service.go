@@ -1,15 +1,11 @@
 package commands
 
 import (
-	"errors"
-	"net/url"
-	"strconv"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"wireport/cmd/server/config"
 	"wireport/internal/publicservices"
+	"wireport/internal/utils"
 )
 
 var local string
@@ -28,69 +24,6 @@ var ParamsServiceCmd = &cobra.Command{
 	Long:  "Manage params of the service (e.g., caddyfile directives or so)",
 }
 
-func parseAddress(addr string) (protocol, host *string, port *uint16, err error) {
-	addr = strings.TrimSpace(addr)
-
-	if addr == "" {
-		return nil, nil, nil, errors.New("valid host value is required")
-	}
-
-	u, err := url.Parse(addr)
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	protocolString := u.Scheme
-
-	if protocolString == "" {
-		return nil, nil, nil, errors.New("protocol is required")
-	}
-
-	lowerProtocolString := strings.ToLower(protocolString)
-	protocol = &lowerProtocolString
-
-	switch *protocol {
-	case "tcp", "udp", "http", "https":
-		// supported, do nothing
-	default:
-		return nil, nil, nil, errors.New("unsupported protocol")
-	}
-
-	hostname := u.Hostname()
-
-	if hostname == "" {
-		return nil, nil, nil, errors.New("host is required")
-	}
-
-	portString := u.Port()
-
-	host = &hostname
-
-	if portString == "" {
-		switch *protocol {
-		case "http":
-			portString = "80"
-		case "https":
-			portString = "443"
-		default:
-			return nil, nil, nil, errors.New("port is required for layer 4 services")
-		}
-	}
-
-	portInt, err := strconv.Atoi(portString)
-
-	if err != nil || portInt < 1 || portInt > 65535 {
-		return nil, nil, nil, errors.New("invalid port")
-	}
-
-	portUint16 := uint16(portInt)
-
-	port = &portUint16
-
-	return protocol, host, port, nil
-}
-
 var PublishServiceCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish a new public service",
@@ -106,14 +39,14 @@ var PublishServiceCmd = &cobra.Command{
 	wireport service publish --local http://10.0.0.2:4000 --public https://demo.server.com:443
 	wireport service publish --local tcp://10.0.0.2:4000 --public tcp://0.0.0.0:443`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		localProtocol, localHost, localPort, err := parseAddress(local)
+		localProtocol, localHost, localPort, err := utils.ParseAddress(local)
 
 		if err != nil {
 			cmd.Printf("❌ Error: local address parsing failed: %v\n", err)
 			return
 		}
 
-		publicProtocol, publicHost, publicPort, err := parseAddress(public)
+		publicProtocol, publicHost, publicPort, err := utils.ParseAddress(public)
 
 		if err != nil {
 			cmd.Printf("❌ Error: public address parsing failed: %v\n", err)
@@ -131,7 +64,14 @@ var PublishServiceCmd = &cobra.Command{
 			return
 		}
 
-		commandsService.ServicePublish(cmd.OutOrStdout(), cmd.ErrOrStderr(), *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
+		currentNode, err := nodesRepository.GetCurrentNode()
+
+		if err != nil {
+			cmd.Printf("❌ Error: failed to get current node: %v\n", err)
+			return
+		}
+
+		commandsService.ServicePublish(cmd.OutOrStdout(), cmd.ErrOrStderr(), &currentNode.ID, *localProtocol, *localHost, *localPort, *publicProtocol, *publicHost, *publicPort)
 	},
 }
 
@@ -144,7 +84,7 @@ var UnpublishServiceCmd = &cobra.Command{
 
 	wireport service unpublish --public tcp://140.120.10.10:443`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		publicProtocol, publicHost, publicPort, err := parseAddress(public)
+		publicProtocol, publicHost, publicPort, err := utils.ParseAddress(public)
 
 		if err != nil {
 			cmd.Printf("❌ Error: public address parsing failed: %v\n", err)
@@ -169,7 +109,7 @@ var NewParamsServiceCmd = &cobra.Command{
 	Short: "Add a new parameter to a public service",
 	Long:  `Add a new parameter to a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy or layer 4 Caddyfile directives)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		publicProtocol, publicHost, publicPort, err := parseAddress(public)
+		publicProtocol, publicHost, publicPort, err := utils.ParseAddress(public)
 
 		if err != nil {
 			cmd.Printf("❌ Error: public address parsing failed: %v\n", err)
@@ -185,7 +125,7 @@ var RemoveParamsServiceCmd = &cobra.Command{
 	Short: "Remove a parameter from a public service",
 	Long:  `Remove a parameter from a public service. Parameters are used for parametrization of the service (e.g., setting up custom headers for an http/https reverse proxy and so on)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		publicProtocol, publicHost, publicPort, err := parseAddress(public)
+		publicProtocol, publicHost, publicPort, err := utils.ParseAddress(public)
 
 		if err != nil {
 			cmd.Printf("Error parsing public address: %v\n", err)
@@ -201,7 +141,7 @@ var ListParamsServiceCmd = &cobra.Command{
 	Short: "List all parameters of a public service",
 	Long:  `List all parameters of a public service (e.g., caddyfile directives)`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		publicProtocol, publicHost, publicPort, err := parseAddress(public)
+		publicProtocol, publicHost, publicPort, err := utils.ParseAddress(public)
 
 		if err != nil {
 			cmd.Printf("❌ Error: public address parsing failed: %v\n", err)
