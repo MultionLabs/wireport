@@ -420,8 +420,6 @@ This command supports different protocols (HTTP, HTTPS, TCP, UDP) and automatica
 
 * **--local** – address of the service **on the machine where you run the command** (or another CLIENT/SERVER node from the wireport-managed WireGuard network)
 * **--public** – External protocol / hostname / port that will be reachable on the GATEWAY
-
-If a service is supposed to be exposed using the public IP of the gateway node (e.g., to be available on `140.120.110.10`), don't specify the public IP itself in **--public** argument, but use `0.0.0.0` instead (e.g., **tcp://0.0.0.0:32420**)
 </details>
 
 ---
