@@ -774,3 +774,55 @@ func (r *Repository) DeleteAll() error {
 
 	return nil
 }
+
+func (r *Repository) assignLabelToNode(nodeID string, label string) error {
+	var node types.Node
+
+	result := r.db.First(&node, "id = ?", nodeID)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	node.Labels = append(node.Labels, label)
+
+	result = r.db.Save(&node)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func (r *Repository) removeLabelFromNode(nodeID string, label string) error {
+	var node types.Node
+
+	result := r.db.First(&node, "id = ?", nodeID)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	node.Labels = slices.DeleteFunc(node.Labels, func(l string) bool {
+		return l == label
+	})
+
+	result = r.db.Save(&node)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+var dockerSocketLabel = "docker-socket-published"
+
+func (r *Repository) PublishDockerSocket(nodeID string) error {
+	return r.assignLabelToNode(nodeID, dockerSocketLabel)
+}
+
+func (r *Repository) UnpublishDockerSocket(nodeID string) error {
+	return r.removeLabelFromNode(nodeID, dockerSocketLabel)
+}

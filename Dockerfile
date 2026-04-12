@@ -1,13 +1,13 @@
 # caddy build stage
-FROM caddy:2.10.0-builder AS caddy-builder
+FROM caddy:2.11.2-builder AS caddy-builder
 
 # build a custom caddy image with the l4 plugin
 RUN xcaddy build \
-    --with github.com/mholt/caddy-l4@87e3e5e2c7f986b34c0df373a5799670d7b8ca03
+    --with github.com/mholt/caddy-l4@afd229714fb14a387f0736cab048afeb72b8946a
 
 
 # CoreDNS build stage
-FROM golang:1.24-alpine AS coredns-builder
+FROM golang:1.25.8-alpine AS coredns-builder
 
 WORKDIR /app
 
@@ -17,12 +17,12 @@ RUN apk add --no-cache git make
 # Clone and build CoreDNS with fanout plugin
 RUN git clone https://github.com/coredns/coredns.git && \
     cd coredns && \
-    git checkout v1.12.1 && \
+    git checkout v1.14.2 && \
     echo "fanout:github.com/networkservicemesh/fanout" >> plugin.cfg && \
     make
 
 # wireport build stage
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.25.8-alpine AS go-builder
 
 WORKDIR /app
 
@@ -47,7 +47,8 @@ RUN apk --no-cache upgrade && apk add --no-cache \
     bind-tools \
     tcpdump \
     runit \
-    docker-cli
+    docker-cli \
+    socat
 
 COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 COPY --from=coredns-builder /app/coredns/coredns /usr/bin/coredns

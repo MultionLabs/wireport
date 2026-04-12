@@ -94,6 +94,8 @@ type Node struct {
 
 	DockerSubnet *IPNetMarshable `gorm:"type:text;serializer:json"`
 
+	Labels []string `gorm:"type:text;serializer:json"`
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
