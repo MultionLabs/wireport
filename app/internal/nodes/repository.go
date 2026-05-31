@@ -1,10 +1,12 @@
 package nodes
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 
 	"wireport/cmd/server/config"
 	"wireport/internal/encryption/mtls"
@@ -237,6 +239,7 @@ func (r *Repository) CreateGateway(WGPublicIP types.IPMarshable, WGPublicPort ui
 			GatewayCertBundle: gatewayCertBundle,
 			ClientCertBundle:  nil,
 			DockerSubnet:      nil,
+			Labels:            []string{},
 			IsCurrentNode:     true, // only create on gateway node
 		}
 
@@ -367,6 +370,7 @@ func (r *Repository) CreateServer(forceDockerSubnetStr *string) (*types.Node, er
 			GatewayCertBundle: nil,
 			ClientCertBundle:  clientCertBundle,
 			DockerSubnet:      dockerSubnet,
+			Labels:            []string{},
 		}
 
 		result := tx.Create(node)
@@ -477,6 +481,7 @@ func (r *Repository) CreateClient() (*types.Node, error) {
 			GatewayCertBundle: nil,
 			ClientCertBundle:  clientCertBundle,
 			DockerSubnet:      nil,
+			Labels:            []string{},
 		}
 
 		result := tx.Create(node)
@@ -519,6 +524,30 @@ func (r *Repository) GetByID(id string) (*types.Node, error) {
 	}
 
 	return &node, nil
+}
+
+// retrieves a server node by its WireGuard private IP address
+func (r *Repository) GetServerByWGPrivateIP(ip string) (*types.Node, error) {
+	ipnet, err := types.ParseIPNetMarshable(strings.TrimSpace(ip), false)
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid IP address: %w", err)
+	}
+
+	ipStr := types.IPToString(ipnet.IP)
+	nodes, err := r.GetNodesByRole(types.NodeRoleServer)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range nodes {
+		if types.IPToString(nodes[i].WGConfig.Interface.Address.IP) == ipStr {
+			return &nodes[i], nil
+		}
+	}
+
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (r *Repository) GetCurrentNode() (*types.Node, error) {
@@ -776,48 +805,52 @@ func (r *Repository) DeleteAll() error {
 }
 
 func (r *Repository) assignLabelToNode(nodeID string, label string) error {
-	var node types.Node
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node types.Node
 
-	result := r.db.First(&node, "id = ?", nodeID)
+		if err := tx.First(&node, "id = ?", nodeID).Error; err != nil {
+			return err
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
+		if slices.Contains(node.Labels, label) {
+			return nil
+		}
 
-	node.Labels = append(node.Labels, label)
+		newLabels := append(node.Labels, label)
 
-	result = r.db.Save(&node)
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	return nil
+		return updateNodeLabels(tx, nodeID, newLabels)
+	})
 }
 
 func (r *Repository) removeLabelFromNode(nodeID string, label string) error {
-	var node types.Node
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node types.Node
 
-	result := r.db.First(&node, "id = ?", nodeID)
+		if err := tx.First(&node, "id = ?", nodeID).Error; err != nil {
+			return err
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
+		if !slices.Contains(node.Labels, label) {
+			return nil
+		}
 
-	node.Labels = slices.DeleteFunc(node.Labels, func(l string) bool {
-		return l == label
+		newLabels := slices.DeleteFunc(node.Labels, func(l string) bool {
+			return l == label
+		})
+
+		return updateNodeLabels(tx, nodeID, newLabels)
 	})
-
-	result = r.db.Save(&node)
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	return nil
 }
 
 var dockerSocketLabel = "docker-socket-published"
+
+func (r *Repository) AddLabelToNode(nodeID string, label string) error {
+	return r.assignLabelToNode(nodeID, label)
+}
+
+func (r *Repository) RemoveLabelFromNode(nodeID string, label string) error {
+	return r.removeLabelFromNode(nodeID, label)
+}
 
 func (r *Repository) PublishDockerSocket(nodeID string) error {
 	return r.assignLabelToNode(nodeID, dockerSocketLabel)
@@ -825,4 +858,28 @@ func (r *Repository) PublishDockerSocket(nodeID string) error {
 
 func (r *Repository) UnpublishDockerSocket(nodeID string) error {
 	return r.removeLabelFromNode(nodeID, dockerSocketLabel)
+}
+
+func (r *Repository) UpdateLabels(nodeID string, labels []string) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return updateNodeLabels(tx, nodeID, labels)
+	})
+}
+
+func updateNodeLabels(tx *gorm.DB, nodeID string, labels []string) error {
+	encodedLabels, err := json.Marshal(labels)
+	if err != nil {
+		return err
+	}
+
+	result := tx.Model(&types.Node{}).Where("id = ?", nodeID).Update("labels", string(encodedLabels))
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
 }

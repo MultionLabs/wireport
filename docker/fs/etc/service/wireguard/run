@@ -2,11 +2,17 @@
 
 echo "> Starting wireguard service"
 
+if [ ! -f /etc/wireguard/wg0.conf ]; then
+    echo "> Waiting for WireGuard config to be written..."
+    while [ ! -f /etc/wireguard/wg0.conf ]; do
+        sleep 2
+    done
+fi
+
 # Bring up the WireGuard interface
 wg-quick up wg0
 
 # Monitor the status of the WireGuard interface (wg0)
-while ip link show wg0 | grep -q "state"; do
-    # Wait for 5 seconds and check again
+while ip link show wg0 2>/dev/null | grep -q "state"; do
     sleep 5
 done

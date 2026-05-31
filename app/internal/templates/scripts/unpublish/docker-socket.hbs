@@ -1,0 +1,23 @@
+set -eu
+# pkill uses -x socat only: pkill -f '…socat…PORT…' can match this sh -c command line.
+SVC="{{ dockerSocketServicePath }}"
+DIS="{{ dockerSocketDisabledPath }}"
+if [ -d "$SVC" ]; then
+  sv down "$SVC" 2>/dev/null || true
+  rm -rf "$DIS"
+  mv "$SVC" "$DIS"
+fi
+pkill -TERM -x socat 2>/dev/null || true
+sleep 1
+pkill -KILL -x socat 2>/dev/null || true
+# Pause helps: after SIGKILL the process row can linger briefly; immediate pgrep false-positives.
+# It does not fix zombies (parent must reap) or pgrep vs ps quirks — only timing races.
+sleep 2
+if pgrep -x socat >/dev/null 2>&1; then
+  sleep 2
+  if pgrep -x socat >/dev/null 2>&1; then
+    echo "socat still present after cleanup (see: ps aux | grep socat)" >&2
+    exit 1
+  fi
+fi
+exit 0

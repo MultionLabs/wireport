@@ -14,6 +14,7 @@ import (
 	templates "wireport/internal/templates"
 
 	"github.com/aymerick/raymond"
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -94,10 +95,15 @@ type Node struct {
 
 	DockerSubnet *IPNetMarshable `gorm:"type:text;serializer:json"`
 
-	Labels []string `gorm:"type:text;serializer:json"`
+	Labels []string `gorm:"type:text;serializer:json;not null;default:'[]'"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+func (n *Node) BeforeCreate(_ *gorm.DB) error {
+	n.Labels = []string{}
+	return nil
 }
 
 func (c *WGConfig) ToINI() (*string, error) {

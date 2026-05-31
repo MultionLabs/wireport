@@ -2,4 +2,9 @@
 
 echo "> Stopping wireguard service"
 
-wg-quick down wg0
+if [ -f /etc/wireguard/wg0.conf ]; then
+    echo "> WireGuard config file exists, stopping WireGuard service"
+    wg-quick down wg0
+else
+    echo "> WireGuard config file does not exist, skipping WireGuard service stop"
+fi

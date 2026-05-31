@@ -2,4 +2,11 @@
 
 echo "> Starting coredns service"
 
+if [ ! -f /etc/coredns/Corefile ]; then
+    echo "> Waiting for CoreDNS config to be written..."
+    while [ ! -f /etc/coredns/Corefile ]; do
+        sleep 2
+    done
+fi
+
 exec /usr/bin/coredns -conf /etc/coredns/Corefile

@@ -17,6 +17,7 @@ if [ "$1" = "gateway" ]; then
 
     mv /etc/service/iptables-server /etc/service-disabled/
     mv /etc/service/wireport-server /etc/service-disabled/
+    mv /etc/service/socat-docker-socket /etc/service-disabled/
 elif [ "$1" = "join" ]; then
     # server
     echo "> Joining wireport network as server"
@@ -25,7 +26,8 @@ elif [ "$1" = "join" ]; then
     mv /etc/service/caddy /etc/service-disabled/
     mv /etc/service/wireport-gateway /etc/service-disabled/
     mv /etc/service/iptables-gateway /etc/service-disabled/
-    
+    mv /etc/service/socat-docker-socket /etc/service-disabled/
+
     wireport join "$2" --postponed
 elif [ "$1" = "server" ]; then
     if [ "$2" = "start" ]; then
@@ -34,6 +36,7 @@ elif [ "$1" = "server" ]; then
         mv /etc/service/caddy /etc/service-disabled/
         mv /etc/service/wireport-gateway /etc/service-disabled/
         mv /etc/service/iptables-gateway /etc/service-disabled/
+        mv /etc/service/socat-docker-socket /etc/service-disabled/
     elif [ "$2" = "down" ]; then
         echo "> Tearing down wireport server"
 
@@ -48,6 +51,7 @@ else
     exit 1
 fi
 
-chmod +x /etc/service/*/run && chmod +x /etc/service/*/finish
+chmod +x /etc/service/*/run && chmod +x /etc/service/*/finish && \
+ chmod +x /etc/service-disabled/*/run && chmod +x /etc/service-disabled/*/finish
 
 exec /usr/sbin/runsvdir /etc/service

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+# TCP port and Unix socket path must stay aligned with wireport/cmd/server/config.Config
+# (DockerSocketTCPPort, DockerSocketUnixPath, RunitService*, DockerSocketServiceName)
+
+# can't be served via cadd because caddy is only running on the gateway node
+# and we want to be able to connect (via docket context) to the docker socket of both server and gateway nodes
+
+echo "> Starting docker socket TCP gateway (socat) after WireGuard is ready"
+
+# Wait for WireGuard tunnel interface to exist and have an IPv4 address.
+while true; do
+  if ip link show wg0 >/dev/null 2>&1; then
+    WG_IP="$(ip -o -4 addr show dev wg0 | awk '{ sub(/\/.*/, "", $4); print $4; exit }')"
+    if [ -n "${WG_IP}" ]; then
+      break
+    fi
+  fi
+  sleep 1
+done
+
+# bind only to the WireGuard tunnel IP, and forward to the local Docker socket
+exec socat "TCP-LISTEN:2375,bind=${WG_IP},reuseaddr,fork" "UNIX-CONNECT:/var/run/docker.sock" >/dev/null 2>&1

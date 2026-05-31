@@ -62,12 +62,12 @@ func main() {
 
 	if err != nil {
 		rootCmd.PrintErrf("Failed to initialize database at %s: %v\n", config.Config.DatabasePath, err)
-	}
+	} else {
+		commands.RegisterCommands(rootCmd, db)
 
-	commands.RegisterCommands(rootCmd, db)
-
-	if err := rootCmd.Execute(); err != nil {
-		rootCmd.PrintErrf("%v\n", err)
+		if err := rootCmd.Execute(); err != nil {
+			rootCmd.PrintErrf("%v\n", err)
+		}
 	}
 
 	defer func() {

@@ -7,6 +7,7 @@ import (
 	"wireport/internal/dockerutils"
 	"wireport/internal/joinrequests"
 	joinrequeststypes "wireport/internal/joinrequests/types"
+	"wireport/internal/networkapps"
 	"wireport/internal/nodes/types"
 	"wireport/internal/publicservices"
 )
@@ -21,12 +22,13 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 		return false
 	}
 
+	gatewayAddress := fmt.Sprintf("%s:%d", joinRequest.GatewayHost, joinRequest.GatewayPort)
 	joinRequestsService := joinrequests.NewAPIService(&joinRequest.ClientCertBundle)
 
-	response, err := joinRequestsService.Join(joinToken, fmt.Sprintf("%s:%d", joinRequest.GatewayHost, joinRequest.GatewayPort))
+	response, err := joinRequestsService.Join(joinToken, gatewayAddress)
 
 	if err != nil {
-		fmt.Fprintf(errOut, "Failed to join network: %v\n", err)
+		fmt.Fprintf(errOut, "%s", joinrequests.FormatJoinError(err, gatewayAddress))
 		return false
 	}
 
@@ -79,6 +81,13 @@ func (s *LocalCommandsService) Join(stdOut io.Writer, errOut io.Writer, joinToke
 		}
 
 		fmt.Fprintf(stdOut, "Successfully saved node config to the database\n")
+
+		if err := networkapps.RestartNetworkApps(true, true, false); err != nil {
+			fmt.Fprintf(errOut, "Joined successfully but failed to signal network service restart: %v\n", err)
+			fmt.Fprintf(errOut, "Runit will still start WireGuard and CoreDNS once configs are in place\n")
+		} else {
+			fmt.Fprintf(stdOut, "Signaled WireGuard and CoreDNS restart\n")
+		}
 	case types.NodeRoleClient:
 		wireguardConfig, err := currentNode.GetFormattedWireguardConfig()
 

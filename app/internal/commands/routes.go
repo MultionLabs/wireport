@@ -54,7 +54,8 @@ func validateRequest(w http.ResponseWriter, r *http.Request, operation string, r
 }
 
 // a generic handler for requests (request body validation and parsing)
-func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(string, *T, *bytes.Buffer, *bytes.Buffer) error, customResponsePacker func(stdOut, errOut *bytes.Buffer) (any, error)) {
+func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handler func(string, *T, *bytes.Buffer, *bytes.Buffer) error,
+	customResponsePacker func(requestFromNodeID string, stdOut, errOut *bytes.Buffer) (any, error)) {
 	operation := r.URL.Path
 	requestFromNodeID := r.TLS.PeerCertificates[0].Subject.CommonName
 
@@ -84,7 +85,7 @@ func handleRequestWithBody[T any](w http.ResponseWriter, r *http.Request, handle
 	var response any // JSON-serializable type
 
 	if customResponsePacker != nil {
-		response, err = customResponsePacker(stdOut, errOut)
+		response, err = customResponsePacker(requestFromNodeID, stdOut, errOut)
 
 		if err != nil {
 			logger.Error("[%s] [from node: %s] Failed to pack %s response: %v", r.Method, requestFromNodeID, operation, err)
@@ -156,7 +157,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(requestFromNodeID string, _ *types.ServerListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServerList(&requestFromNodeID, stdOut, errOut)
 			return nil
-		}, func(stdOut, errOut *bytes.Buffer) (any, error) {
+		}, func(requestFromNodeID string, stdOut, errOut *bytes.Buffer) (any, error) {
 			serversCount, err := services.NodesRepository.CountNodesByRole(node_types.NodeRoleServer)
 
 			if err != nil {
@@ -171,6 +172,20 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 				ServerNodesCount: serversCount,
 			}, nil
 		})
+	})
+
+	mux.HandleFunc("/commands/node/label/add", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(_ string, req *types.NodeLabelAddRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.NodeLabelAdd(stdOut, errOut, req.NodeIP, req.Label)
+			return nil
+		}, nil)
+	})
+
+	mux.HandleFunc("/commands/node/label/remove", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(_ string, req *types.NodeLabelRemoveRequestDTO, stdOut, errOut *bytes.Buffer) error {
+			services.CommandsService.NodeLabelRemove(stdOut, errOut, req.NodeIP, req.Label)
+			return nil
+		}, nil)
 	})
 
 	// Client routes
@@ -207,7 +222,7 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 		handleRequestWithBody(w, r, func(_ string, _ *types.ServiceListRequestDTO, stdOut, errOut *bytes.Buffer) error {
 			services.CommandsService.ServiceList(stdOut, errOut)
 			return nil
-		}, func(stdOut, errOut *bytes.Buffer) (any, error) {
+		}, func(_ string, stdOut, errOut *bytes.Buffer) (any, error) {
 			services, err := services.PublicServicesRepository.GetAll()
 
 			if err != nil {
@@ -244,6 +259,28 @@ func RegisterRoutes(mux *http.ServeMux, db *gorm.DB) {
 			services.CommandsService.ServiceParamList(stdOut, errOut, req.PublicProtocol, req.PublicHost, req.PublicPort)
 			return nil
 		}, nil)
+	})
+
+	// node config routes
+	mux.HandleFunc("/commands/node/config", func(w http.ResponseWriter, r *http.Request) {
+		handleRequestWithBody(w, r, func(_ string, _ *types.NodeConfigRequestDTO, _, _ *bytes.Buffer) error {
+			// no-op on the gateway node - we only need the response
+			return nil
+		}, func(requestFromNodeID string, stdOut, errOut *bytes.Buffer) (any, error) {
+			nodeConfig, err := services.NodesRepository.GetByID(requestFromNodeID)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return types.NodeConfigResponseDTO{
+				ExecResponseDTO: types.ExecResponseDTO{
+					Stdout: strings.TrimSpace(stdOut.String()),
+					Stderr: strings.TrimSpace(errOut.String()),
+				},
+				NodeConfig: nodeConfig,
+			}, nil
+		})
 	})
 
 	// special case with different response format

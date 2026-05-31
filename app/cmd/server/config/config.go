@@ -78,9 +78,12 @@ type Configuration struct {
 	DockerNetworkName   string
 	DockerNetworkDriver string
 
-	WireguardRestartCommand string
-	CaddyRestartCommand     string
-	CoreDNSRestartCommand   string
+	WireguardRestartCommand          string
+	CaddyRestartCommand              string
+	CoreDNSRestartCommand            string
+	ServerJoinVerificationCommandFmt string
+
+	DocumentationURL string
 
 	WireportGatewayContainerName  string
 	WireportGatewayContainerImage string
@@ -120,9 +123,14 @@ var Config = &Configuration{
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",
 
-	WireguardRestartCommand: "/usr/bin/wg-quick down wg0 && /usr/bin/wg-quick up wg0",
+	// || true on down: wg0 may not exist yet right after join (runit starts wireguard separately). Real wg-quick up failures still fail the command
+	WireguardRestartCommand: "(/usr/bin/wg-quick down wg0 2>/dev/null || true) && /usr/bin/wg-quick up wg0",
 	CaddyRestartCommand:     "/usr/bin/caddy reload --config %s --adapter caddyfile",
-	CoreDNSRestartCommand:   "/bin/kill -9 $(pidof coredns)", // with actual restart (not -HUP) - to drop the cache
+	// || true when coredns is not running: expected before runit execs CoreDNS. TERM vs kill -9: gentler; node may schedule another restart
+	CoreDNSRestartCommand:            "/usr/bin/pkill -TERM coredns 2>/dev/null || true",
+	ServerJoinVerificationCommandFmt: "docker exec %s sh -c 'test -f %s && test -f %s'",
+
+	DocumentationURL: GetEnv("WIREPORT_DOCUMENTATION_URL", "https://github.com/MultionLabs/wireport"),
 
 	WireportGatewayContainerName:  "wireport-gateway",
 	WireportGatewayContainerImage: "ghcr.io/multionlabs/wireport",

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 	"wireport/cmd/server/config"
 	"wireport/internal/nodes/types"
 	"wireport/internal/ssh"
@@ -153,6 +154,58 @@ var UpgradeServerCmd = &cobra.Command{
 	},
 }
 
+func validateNodeIPAndLabel(nodeIP string, label string) error {
+	if strings.TrimSpace(nodeIP) == "" || strings.TrimSpace(label) == "" {
+		return fmt.Errorf("node IP and label must be non-empty")
+	}
+
+	return nil
+}
+
+var ServerLabelCmd = &cobra.Command{
+	Use:   "label",
+	Short: "Add or remove labels on server nodes",
+	Long: `Manage labels stored on server nodes in the gateway database (e.g. feature flags consumed by automation and experimental features).
+
+Every now and then server nodes synchronize their labels with the gateway database to ensure that the labels are up to date.
+
+On a client node, these commands call the gateway control API over mTLS. On the gateway node, they update the local database directly.`,
+}
+
+var ServerLabelAddCmd = &cobra.Command{
+	Use:   "add NODE_IP LABEL",
+	Short: "Append a label to a server node if it is not already present",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		nodeIP := args[0]
+		label := args[1]
+
+		if err := validateNodeIPAndLabel(nodeIP, label); err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.NodeLabelAdd(cmd.OutOrStdout(), cmd.ErrOrStderr(), nodeIP, label)
+	},
+}
+
+var ServerLabelRemoveCmd = &cobra.Command{
+	Use:   "remove NODE_IP LABEL",
+	Short: "Remove a label from a server node",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		nodeIP := args[0]
+		label := args[1]
+
+		if err := validateNodeIPAndLabel(nodeIP, label); err != nil {
+			cmd.PrintErrf("❌ Error: %v\n", err)
+			return
+		}
+
+		commandsService.NodeLabelRemove(cmd.OutOrStdout(), cmd.ErrOrStderr(), nodeIP, label)
+	},
+}
+
 func init() {
 	NewServerCmd.Flags().BoolVarP(&forceServerCreation, "force", "f", false, "Force the creation of a new server, bypassing the join request generation")
 	NewServerCmd.Flags().StringVar(&dockerSubnet, "docker-subnet", "", "Specify a custom Docker subnet for the server (e.g. 172.20.0.0/16)")
@@ -165,6 +218,9 @@ func init() {
 	ServerCmd.AddCommand(DownServerCmd)
 	ServerCmd.AddCommand(ListServerCmd)
 	ServerCmd.AddCommand(UpgradeServerCmd)
+	ServerLabelCmd.AddCommand(ServerLabelAddCmd)
+	ServerLabelCmd.AddCommand(ServerLabelRemoveCmd)
+	ServerCmd.AddCommand(ServerLabelCmd)
 
 	StatusServerCmd.Flags().String("ssh-key-path", "", "Path to SSH private key file (for passwordless authentication)")
 	StatusServerCmd.Flags().BoolVar(&ServerSSHKeyPassEmpty, "ssh-key-pass-empty", false, "Skip SSH key passphrase prompt (for passwordless SSH keys)")

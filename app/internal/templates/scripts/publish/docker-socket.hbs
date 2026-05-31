@@ -1,0 +1,24 @@
+set -eu
+# Use pgrep -x socat: pgrep -f 'socat…PORT' matches this sh -c command line and false-positives.
+SVC="{{ dockerSocketServicePath }}"
+DIS="{{ dockerSocketDisabledPath }}"
+if [ -d "$DIS" ]; then
+  rm -rf "$SVC"
+  mv "$DIS" "$SVC"
+fi
+if [ ! -d "$SVC" ]; then
+  echo "{{ dockerSocketServiceName }} service directory is missing under {{ runitServiceDir }} and {{ runitServiceDisabledDir }}" >&2
+  exit 1
+fi
+# After mv from service-disabled, mode bits are unchanged; run must be +x or runsv never starts socat (publish loop then exits 1).
+chmod +x "$SVC/run"
+[ -f "$SVC/finish" ] && chmod +x "$SVC/finish"
+sv up "$SVC" 2>/dev/null || true
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if pgrep -x socat >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 1
+done
+echo "socat did not start listening on port {{ dockerSocketTCPPort }} in time" >&2
+exit 1

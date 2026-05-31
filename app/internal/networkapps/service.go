@@ -16,25 +16,27 @@ func RestartNetworkApps(restartWireguard bool, restartCoreDNS bool, restartCaddy
 
 	if restartWireguard {
 		if _, err := os.Stat(config.Config.WireguardConfigPath); !os.IsNotExist(err) {
+			// Shell command may exit 0 while wg0 is not up yet (see WireguardRestartCommand). Runit also starts wg after join.
 			err := exec.Command("/bin/sh", "-c", config.Config.WireguardRestartCommand).Run()
 
 			if err != nil {
 				return fmt.Errorf("failed to restart wireguard: %v", err)
 			}
 
-			logger.Info("Wireguard restarted")
+			logger.Info("Wireguard restart command finished")
 		}
 	}
 
 	if restartCoreDNS {
 		if _, err := os.Stat(config.Config.CoreDNSConfigPath); !os.IsNotExist(err) {
-			err = exec.Command("/bin/sh", "-c", config.Config.CoreDNSRestartCommand).Run()
+			// May no-op when CoreDNS is not running yet; gateway also schedules a delayed restart after server join.
+			err := exec.Command("/bin/sh", "-c", config.Config.CoreDNSRestartCommand).Run()
 
 			if err != nil {
 				return fmt.Errorf("failed to restart coredns: %v", err)
 			}
 
-			logger.Info("CoreDNS restarted")
+			logger.Info("CoreDNS restart command finished")
 		}
 	}
 
@@ -60,7 +62,8 @@ var (
 	isNetworkAppsRestarting atomic.Bool
 )
 
-// Schedule a network apps restart to happen after a delay
+// ScheduleNetworkAppsRestart runs RestartNetworkApps after a delay (e.g. gateway CoreDNS/Caddy pick up a new server)
+// Brief stale DNS is possible if the first signal was a no-op; the delayed run is the main recovery path
 func ScheduleNetworkAppsRestart(delay time.Duration, restartWireguard bool, restartCoreDNS bool, restartCaddy bool) {
 	networkAppsRestartOnce.Do(func() {
 		go func() {

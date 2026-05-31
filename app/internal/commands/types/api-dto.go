@@ -95,3 +95,23 @@ type ServerListResponseDTO struct {
 	ExecResponseDTO
 	ServerNodesCount int `json:"serverNodesCount"`
 }
+
+// node
+
+type NodeConfigRequestDTO struct {
+}
+
+type NodeConfigResponseDTO struct {
+	ExecResponseDTO
+	NodeConfig *node_types.Node `json:"node"`
+}
+
+type NodeLabelAddRequestDTO struct {
+	NodeIP string `json:"nodeIP"`
+	Label  string `json:"label"`
+}
+
+type NodeLabelRemoveRequestDTO struct {
+	NodeIP string `json:"nodeIP"`
+	Label  string `json:"label"`
+}

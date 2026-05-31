@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"wireport/cmd/server/config"
 	"wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
+	"wireport/internal/joinrequests"
 	"wireport/internal/publicservices"
 	"wireport/internal/ssh"
 	"wireport/internal/utils"
@@ -16,6 +18,8 @@ import (
 	"github.com/google/uuid"
 
 	"wireport/internal/nodes/types"
+
+	"gorm.io/gorm"
 )
 
 // Label keys expected in Docker Compose (or equivalent) to declare a wireport publication.
@@ -189,9 +193,42 @@ func (s *LocalCommandsService) ServerStart(apiCommandsService *APICommandsServic
 
 		ensureDockerNetworkIsAttachedToAllContainers(stdOut, errOut)
 		reconcileGatewayServicesWithDockerLabels(apiCommandsService, currentNode, stdOut, errOut)
+		refreshNodeConfig(s, apiCommandsService, currentNode, stdOut, errOut)
 
 		time.Sleep(time.Second * 30)
 	}
+}
+
+func refreshNodeConfig(localCommandsService *LocalCommandsService, apiCommandsService *APICommandsService, currentNode *types.Node, stdOut io.Writer, errOut io.Writer) {
+	nodeCommandResponse, err := apiCommandsService.NodeConfig()
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to get node config: %v\n", err)
+		return
+	}
+
+	nodeConfig := nodeCommandResponse.NodeConfig
+
+	if nodeConfig == nil {
+		fmt.Fprintf(errOut, "Failed to get node config: %v\n", err)
+		return
+	}
+
+	if nodeConfig.ID != currentNode.ID {
+		fmt.Fprintf(errOut, "Node config mismatch: %s != %s\n", nodeConfig.ID, currentNode.ID)
+		return
+	}
+
+	// for now we only update the labels
+	// other fields can be resynced the same way if needed
+	err = localCommandsService.NodesRepository.UpdateLabels(nodeConfig.ID, nodeConfig.Labels)
+
+	if err != nil {
+		fmt.Fprintf(errOut, "Failed to update node config: %v\n", err)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "Node config updated successfully\n")
 }
 
 func ensureDockerNetworkIsAttachedToAllContainers(stdOut io.Writer, errOut io.Writer) {
@@ -511,15 +548,41 @@ func (s *LocalCommandsService) ServerUp(creds *ssh.Credentials, image string, im
 		return
 	}
 
-	if installationConfirmed {
-		fmt.Fprintf(stdOut, "   Status: ✅ Verified Successfully, Running\n")
-		fmt.Fprintf(stdOut, "   🎉 Server has been successfully installed and connected to the wireport network!\n\n")
-	} else {
+	if !installationConfirmed {
 		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
-		fmt.Fprintf(stdOut, "   💡 Server node container was not found running after installation, please check the logs on the server node for more details.\n\n")
+		fmt.Fprintf(stdOut, "   💡 Server node container was not found running after installation. Check logs on the server: docker logs %s\n\n", config.Config.WireportServerContainerName)
+		return
 	}
 
-	fmt.Fprintf(stdOut, "✨ Server Bootstrapping completed successfully!\n")
+	fmt.Fprintf(stdOut, "   Container: ✅ Running\n")
+	fmt.Fprintf(stdOut, "   Waiting for server to join the wireport network (up to 3 minutes)...\n")
+	fmt.Fprintf(stdOut, "   💡 If this takes too long:\n")
+	fmt.Fprintf(stdOut, "      - Check firewalls on the server host (outbound) AND the gateway host (inbound)\n")
+	fmt.Fprintf(stdOut, "      - Firewall setup details: %s\n", config.Config.DocumentationURL)
+	fmt.Fprintf(stdOut, "      - If firewalls look correct, inspect server container logs: docker logs -f %s\n\n", config.Config.WireportServerContainerName)
+
+	joined, err := sshService.WaitForWireportServerJoined(3 * time.Minute)
+	if err != nil {
+		fmt.Fprintf(stdOut, "   Status: ❌ Verification Failed\n")
+		fmt.Fprintf(stdOut, "   Error:  %v\n\n", err)
+		return
+	}
+
+	if joined {
+		fmt.Fprintf(stdOut, "   Network: ✅ Joined successfully\n")
+		fmt.Fprintf(stdOut, "   🎉 Server has been successfully installed and connected to the wireport network!\n\n")
+		fmt.Fprintf(stdOut, "✨ Server Bootstrapping completed successfully!\n")
+		return
+	}
+
+	fmt.Fprintf(stdOut, "   Network: ❌ Not joined yet\n\n")
+	fmt.Fprintf(stdOut, "   The server container is running but could not reach the gateway to complete setup.\n")
+	fmt.Fprintf(stdOut, "   Common causes: gateway not reachable, or firewall rules on the server (outbound) or gateway (inbound).\n\n")
+	fmt.Fprintf(stdOut, "%s", joinrequests.ConnectivityRequirementsText())
+	fmt.Fprintf(stdOut, "   More detail: %s\n\n", config.Config.DocumentationURL)
+	fmt.Fprintf(stdOut, "   After opening ports, the server will retry joining automatically — no container restart needed.\n")
+	fmt.Fprintf(stdOut, "   Monitor progress: docker logs -f %s\n\n", config.Config.WireportServerContainerName)
+	fmt.Fprintf(errOut, "Server bootstrap incomplete: container is running but the server has not joined the wireport network yet\n")
 }
 
 func (s *LocalCommandsService) ServerDown(creds *ssh.Credentials, stdOut io.Writer, errOut io.Writer) {
@@ -612,16 +675,22 @@ func (s *LocalCommandsService) ServerList(requestFromNodeID *string, stdOut io.W
 		return
 	}
 
-	fmt.Fprintf(stdOut, "SERVER PRIVATE IP\n")
+	fmt.Fprintf(stdOut, "SERVER PRIVATE IP       LABELS\n")
 	fmt.Fprintf(stdOut, "%s\n", strings.Repeat("=", 80))
 
 	if len(serverNodes) > 0 {
 		for _, serverNode := range serverNodes {
+			ip := serverNode.WGConfig.Interface.Address.String()
 			if requestFromNodeID != nil && serverNode.ID == *requestFromNodeID {
-				fmt.Fprintf(stdOut, "%s*\n", serverNode.WGConfig.Interface.Address.String())
-			} else {
-				fmt.Fprintf(stdOut, "%s\n", serverNode.WGConfig.Interface.Address.String())
+				ip += "*"
 			}
+
+			labels := strings.Join(serverNode.Labels, ", ")
+			if labels == "" {
+				labels = "-"
+			}
+
+			fmt.Fprintf(stdOut, "%-24s %s\n", ip, labels)
 		}
 	} else {
 		fmt.Fprintf(stdOut, "No servers are registered on this gateway.\nUse 'wireport server new' command to create a new server node join request.\n")
@@ -670,4 +739,44 @@ func (s *LocalCommandsService) ServerUpgrade(creds *ssh.Credentials, image strin
 	}
 
 	fmt.Fprintf(stdOut, "✨ Server Upgrade completed!\n")
+}
+
+func (s *LocalCommandsService) NodeLabelAdd(nodeIP string, label string, stdOut io.Writer, errOut io.Writer) {
+	node, err := s.NodesRepository.GetServerByWGPrivateIP(nodeIP)
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			fmt.Fprintf(errOut, "No server node found with IP %q\n", nodeIP)
+			return
+		}
+		fmt.Fprintf(errOut, "failed to resolve server node: %v\n", err)
+		return
+	}
+
+	if err := s.NodesRepository.AddLabelToNode(node.ID, label); err != nil {
+		fmt.Fprintf(errOut, "failed to add label: %v\n", err)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "Added label %q to server node %q\n", label, types.IPToString(node.WGConfig.Interface.Address.IP))
+}
+
+func (s *LocalCommandsService) NodeLabelRemove(nodeIP string, label string, stdOut io.Writer, errOut io.Writer) {
+	node, err := s.NodesRepository.GetServerByWGPrivateIP(nodeIP)
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			fmt.Fprintf(errOut, "No server node found with IP %q\n", nodeIP)
+			return
+		}
+		fmt.Fprintf(errOut, "failed to resolve server node: %v\n", err)
+		return
+	}
+
+	if err := s.NodesRepository.RemoveLabelFromNode(node.ID, label); err != nil {
+		fmt.Fprintf(errOut, "failed to remove label: %v\n", err)
+		return
+	}
+
+	fmt.Fprintf(stdOut, "Removed label %q from server node %q\n", label, types.IPToString(node.WGConfig.Interface.Address.IP))
 }

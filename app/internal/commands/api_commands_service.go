@@ -72,9 +72,17 @@ func makeSecureRequestWithResponse[RequestType any, ResponseType any](api *APICo
 		return response, fmt.Errorf("failed to read response body: %v", err)
 	}
 
+	if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
+		return response, fmt.Errorf("request failed with status %d: %s", httpResponse.StatusCode, string(responseBody))
+	}
+
+	if len(responseBody) == 0 {
+		return response, fmt.Errorf("empty response body with status %d", httpResponse.StatusCode)
+	}
+
 	err = json.Unmarshal(responseBody, &response)
 	if err != nil {
-		return response, fmt.Errorf("failed to unmarshal response body: %v", err)
+		return response, fmt.Errorf("failed to unmarshal response body (status %d, body=%q): %v", httpResponse.StatusCode, string(responseBody), err)
 	}
 
 	return response, nil
@@ -90,7 +98,7 @@ func (a *APICommandsService) ServerNew(force bool, quiet bool, dockerSubnet stri
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to server/new failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -106,7 +114,7 @@ func (a *APICommandsService) ServerRemove(nodeID string) (types.ExecResponseDTO,
 	)
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to server/remove failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -123,7 +131,7 @@ func (a *APICommandsService) ClientNew(force bool, quiet bool, wait bool) (types
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to client/new failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -137,7 +145,7 @@ func (a *APICommandsService) ClientList() (types.ExecResponseDTO, error) {
 	)
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to client/list failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -151,11 +159,45 @@ func (a *APICommandsService) ServerList() (types.ServerListResponseDTO, error) {
 	)
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to server/list failed: %v", err)
 		return types.ServerListResponseDTO{}, err
 	}
 
 	return serverListResponseDTO, nil
+}
+
+func (a *APICommandsService) NodeLabelAdd(nodeIP string, label string) (types.ExecResponseDTO, error) {
+	return makeSecureRequestWithResponse[types.NodeLabelAddRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/node/label/add",
+		types.NodeLabelAddRequestDTO{
+			NodeIP: nodeIP,
+			Label:  label,
+		},
+	)
+}
+
+func (a *APICommandsService) NodeLabelRemove(nodeIP string, label string) (types.ExecResponseDTO, error) {
+	return makeSecureRequestWithResponse[types.NodeLabelRemoveRequestDTO, types.ExecResponseDTO](
+		a, "POST", "/commands/node/label/remove",
+		types.NodeLabelRemoveRequestDTO{
+			NodeIP: nodeIP,
+			Label:  label,
+		},
+	)
+}
+
+func (a *APICommandsService) NodeConfig() (types.NodeConfigResponseDTO, error) {
+	nodeConfigResponseDTO, err := makeSecureRequestWithResponse[types.NodeConfigRequestDTO, types.NodeConfigResponseDTO](
+		a, "POST", "/commands/node/config",
+		types.NodeConfigRequestDTO{},
+	)
+
+	if err != nil {
+		logger.Error("Request to node/config failed: %v", err)
+		return types.NodeConfigResponseDTO{}, err
+	}
+
+	return nodeConfigResponseDTO, nil
 }
 
 func (a *APICommandsService) ServicePublish(localProtocol string, localHost string, localPort uint16, publicProtocol string, publicHost string, publicPort uint16) (types.ExecResponseDTO, error) {
@@ -171,7 +213,7 @@ func (a *APICommandsService) ServicePublish(localProtocol string, localHost stri
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/publish failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -188,7 +230,7 @@ func (a *APICommandsService) ServiceUnpublish(publicProtocol string, publicHost 
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/unpublish failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -202,7 +244,7 @@ func (a *APICommandsService) ServiceList() (types.ServiceListRequestDTO, error) 
 	)
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/list failed: %v", err)
 		return types.ServiceListRequestDTO{}, err
 	}
 
@@ -221,7 +263,7 @@ func (a *APICommandsService) ServiceParamNew(publicProtocol string, publicHost s
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/params/new failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -240,7 +282,7 @@ func (a *APICommandsService) ServiceParamRemove(publicProtocol string, publicHos
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/params/remove failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 
@@ -257,7 +299,7 @@ func (a *APICommandsService) ServiceParamList(publicProtocol string, publicHost 
 		})
 
 	if err != nil {
-		logger.Error("Failed to marshal request body: %v", err)
+		logger.Error("Request to service/params/list failed: %v", err)
 		return types.ExecResponseDTO{}, err
 	}
 

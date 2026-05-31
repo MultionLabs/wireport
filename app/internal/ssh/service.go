@@ -334,6 +334,31 @@ func (s *Service) IsWireportGatewayContainerRunning() (bool, error) {
 	return true, nil
 }
 
+// WaitForWireportServerJoined polls until join configs exist inside the server container
+// or until the timeout expires
+func (s *Service) WaitForWireportServerJoined(timeout time.Duration) (bool, error) {
+	checkCmd := fmt.Sprintf(
+		config.Config.ServerJoinVerificationCommandFmt,
+		config.Config.WireportServerContainerName,
+		config.Config.WireguardConfigPath,
+		config.Config.CoreDNSConfigPath,
+	)
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		result, err := s.executeCommand(checkCmd)
+		if err != nil {
+			return false, err
+		}
+		if result.ExitCode == 0 {
+			return true, nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	return false, nil
+}
+
 func (s *Service) IsWireportServerContainerRunning() (bool, error) {
 	dockerInstalled, err := s.IsDockerInstalled()
 
