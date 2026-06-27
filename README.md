@@ -50,7 +50,7 @@
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
 - Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels) 
-- [Manage remote Docker workloads locally](#remote-docker-socket-access) — from your laptop, `docker` / `compose --context` over the VPN to manage containers as if they were local (no SSHing)
+- [Manage remote Docker workloads locally](#remote-docker-socket-access) — from your laptop, `docker` / `compose --context` over the VPN to the server to manage containers as if they were local (no SSHing)
 - [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
 
 | ![Ingress Proxy](assets/wireport-ingress-proxy-screenshot.png) | ![Hostname Resolution](assets/wireport-hostname-resolution-screenshot.png) |
