@@ -842,8 +842,6 @@ func (r *Repository) removeLabelFromNode(nodeID string, label string) error {
 	})
 }
 
-var dockerSocketLabel = "docker-socket-published"
-
 func (r *Repository) AddLabelToNode(nodeID string, label string) error {
 	return r.assignLabelToNode(nodeID, label)
 }
@@ -853,11 +851,11 @@ func (r *Repository) RemoveLabelFromNode(nodeID string, label string) error {
 }
 
 func (r *Repository) PublishDockerSocket(nodeID string) error {
-	return r.assignLabelToNode(nodeID, dockerSocketLabel)
+	return r.assignLabelToNode(nodeID, DockerSocketPublishedLabel)
 }
 
 func (r *Repository) UnpublishDockerSocket(nodeID string) error {
-	return r.removeLabelFromNode(nodeID, dockerSocketLabel)
+	return r.removeLabelFromNode(nodeID, DockerSocketPublishedLabel)
 }
 
 func (r *Repository) UpdateLabels(nodeID string, labels []string) error {

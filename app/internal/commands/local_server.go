@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"wireport/cmd/server/config"
+	"wireport/internal/dockersocket"
 	"wireport/internal/dockerutils"
 	"wireport/internal/encryption/mtls"
 	"wireport/internal/joinrequests"
@@ -229,6 +230,8 @@ func refreshNodeConfig(localCommandsService *LocalCommandsService, apiCommandsSe
 	}
 
 	fmt.Fprintf(stdOut, "Node config updated successfully\n")
+
+	dockersocket.ReconcileWithLabels(nodeConfig.Labels, stdOut, errOut)
 }
 
 func ensureDockerNetworkIsAttachedToAllContainers(stdOut io.Writer, errOut io.Writer) {

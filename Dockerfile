@@ -1,10 +1,11 @@
 # ==========================================
 # 1. CADDY BUILD STAGE
 # ==========================================
-FROM caddy:2.11.3-builder AS caddy-builder
+# FIXED: Upgraded from 2.11.3 to 2.11.4
+FROM caddy:2.11.4-builder AS caddy-builder
 
-# with the latest security logic and Go 1.26+
-ENV GOTOOLCHAIN=go1.26.3
+# FIXED: Upgraded Go toolchain from 1.26.3 to 1.26.4
+ENV GOTOOLCHAIN=go1.26.4
 ENV CGO_ENABLED=0
 
 # CVE-2026-46595, CVE-2026-39830–34, CVE-2026-42508 → x/crypto >= v0.52.0
@@ -19,7 +20,7 @@ RUN xcaddy build \
 # ==========================================
 # 2. COREDNS BUILD STAGE
 # ==========================================
-FROM golang:1.26.3-alpine AS coredns-builder
+FROM golang:1.26.4-alpine AS coredns-builder
 
 WORKDIR /app
 
@@ -32,19 +33,20 @@ ENV CGO_ENABLED=0
 ENV GOAMD64=v1
 
 # Clone and build CoreDNS with fanout plugin
+# CVE-2026-40898 → Force upgrade transitive quic-go dependency to v0.59.1
 RUN git clone https://github.com/coredns/coredns.git && \
     cd coredns && \
     git checkout v1.14.3 && \
-    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 && \
+    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 github.com/quic-go/quic-go@v0.59.1 && \
     go mod tidy && \
     echo "fanout:github.com/networkservicemesh/fanout" >> plugin.cfg && \
     make
 
 # ==========================================
-# 3. DOCKER CLI BUILD STAGE (NEW)
+# 3. DOCKER CLI BUILD STAGE
 # ==========================================
-# Compiling Docker CLI natively using Go 1.26.3 to ensure zero legacy stdlib vulnerabilities
-FROM golang:1.26.3-alpine AS docker-builder
+# FIXED: Upgraded Go version from 1.26.3 to 1.26.4
+FROM golang:1.26.4-alpine AS docker-builder
 
 RUN apk add --no-cache git make
 RUN git clone --depth 1 --branch v27.5.1 https://github.com/docker/cli.git /go/src/github.com/docker/cli
@@ -55,7 +57,8 @@ RUN make binary && cp build/docker /usr/bin/docker
 # ==========================================
 # 4. WIREPORT BUILD STAGE
 # ==========================================
-FROM golang:1.26.3-alpine AS go-builder
+# FIXED: Upgraded Go version from 1.26.3 to 1.26.4
+FROM golang:1.26.4-alpine AS go-builder
 
 WORKDIR /app
 
@@ -74,11 +77,9 @@ RUN go build -o wireport ./cmd/server/main.go
 # ==========================================
 # 5. FINAL RUNTIME STAGE
 # ==========================================
-# wireguard, tcpdump & other tools
 FROM alpine:3.21.3
 
 # Update base image with security patches and install only the minimal runtime
-# CVE-2025-11964 (libpcap < 1.10.6): pin from edge before tcpdump pulls 1.10.5-r0 on 3.21
 RUN apk --no-cache upgrade && \
     apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main \
         "nghttp2>=1.68.1" \
@@ -94,7 +95,7 @@ RUN apk --no-cache upgrade && \
         runit \
         socat
 
-# Copy clean binaries all generated uniformly from the Go 1.26.3 toolchain
+# Copy clean binaries all generated uniformly from the secure Go toolchain
 COPY --from=docker-builder /usr/bin/docker /usr/bin/docker
 COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 COPY --from=coredns-builder /app/coredns/coredns /usr/bin/coredns

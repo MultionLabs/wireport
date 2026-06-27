@@ -49,7 +49,8 @@
 - **Secure VPN tunneling** (WireGuard)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
-- Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels)
+- Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels) (automatic publish/unpublish on SERVER nodes)
+- **[Deploy Docker workloads on remote servers from your laptop](#remote-docker-socket-access)** — point your laptop's Docker CLI or Compose at a SERVER over the private VPN and run containers as if the engine were local (no SSH, not exposed to the Internet)
 - [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
 
 | ![Ingress Proxy](assets/wireport-ingress-proxy-screenshot.png) | ![Hostname Resolution](assets/wireport-hostname-resolution-screenshot.png) |
@@ -459,12 +460,16 @@ When you run `wireport server up`, the following happens:
    - Service discovery agent
 5. **Network Integration**: Connects the server to the wireport-managed WireGuard network, provided by the gateway node
 6. **Configuration Storage**: Stores all configuration in `~/.wireport-docker/server` on the server machine
+7. **Background agent**: The server container runs a reconciliation loop (every ~30 seconds) that:
+   - syncs **node labels** from the gateway database
+   - publishes/unpublishes gateway tunnels based on **Docker container labels**
+   - enables/disables optional features controlled by node labels (e.g. Docker socket exposure)
 
 ---
 
 ## Tunnel configuration via docker labels
 
-wireport supports declarative tunnel configuration via **docker labels**. When preparing a service for launching on a [SERVER node](#server-node-preparation), add the following labels to its docker-compose file definition:
+wireport supports declarative tunnel configuration via **docker labels** on [SERVER nodes](#server-node-preparation). Add labels to your docker-compose service definition (or equivalent):
 
 - `wireport.service.local` - local address of the service that should be exposed to the Internet; the service hostname in the address should match the container name of your docker service
 - `wireport.service.public` - public address of the service; the service will be available at this address; make sure to [configure DNS](#dns-configuration) to point to your GATEWAY node for domain resolution to work correctly
@@ -490,6 +495,64 @@ services:
         max-size: 10m
 ```
 
+After the container starts on a SERVER node, wireport **automatically** publishes or unpublishes the service on the GATEWAY when labels are added or removed — no manual `wireport service publish` required. Only tunnels defined by labels on containers running on that server are managed; publications created manually from a CLIENT are left unchanged.
+
+The local hostname in `wireport.service.local` must match the **Docker container name** (not the compose service name, unless they are the same).
+
+## Server node labels
+
+Server nodes store a list of string **labels** in the gateway database. Labels are useful as feature flags, automation hooks, or opt-in capabilities on specific servers.
+
+Manage labels from your CLIENT machine (calls the gateway API over mTLS):
+
+```bash
+# NODE_IP = server's private WireGuard address (e.g. 10.0.0.3)
+wireport server label add 10.0.0.3 my-feature-flag
+wireport server label remove 10.0.0.3 my-feature-flag
+```
+
+Each SERVER node periodically pulls its label list from the gateway and applies local changes (within ~30 seconds).
+
+Supported node labels:
+
+| Label | Effect on SERVER node |
+|:------|:----------------------|
+| `docker-socket-published` | Exposes the local Docker socket on the server's WireGuard IP at **TCP port 2375** (see below) |
+
+## Remote Docker socket access
+
+When a SERVER node has the `docker-socket-published` label, wireport starts a **socat** gateway inside the server container. It listens on the node's **WireGuard address** (IP of `wg0` interface, port `2375`) and forwards to `/var/run/docker.sock`.
+
+From your CLIENT laptop on the wireport VPN, set a **Docker context** to that address. Then `docker` and `docker compose` talk to the remote engine — you can `ps`, `logs`, `compose up`, and deploy workloads on the SERVER much like they were running on your own machine. Nothing is exposed on the public Internet; only peers on the wireport VPN can reach the socket.
+
+**Enable** (from CLIENT):
+
+```bash
+wireport server label add 10.0.0.3 docker-socket-published
+```
+
+> Use the server's WireGuard IP from `wireport server list` (e.g. `10.0.0.3`).
+
+Wait for the next server sync cycle (~30 seconds).
+
+Then, from your CLIENT machine, you can deploy full Docker Compose stacks — or run individual Docker commands — on the remote SERVER via its Docker socket, for example:
+
+```bash
+docker context create wp-server --docker "host=tcp://10.0.0.3:2375"
+docker --context wp-server ps
+docker compose --context wp-server -f ./docker-compose.yml up -d
+```
+
+**Disable**:
+
+```bash
+wireport server label remove 10.0.0.3 docker-socket-published
+```
+
+The socat service is stopped and moved out of runit supervision so it will not restart until the label is added again.
+
+> **Security:** Anyone who can reach the server's WireGuard IP on port 2375 has full Docker API access on that host. Only enable this label when you trust all peers on the wireport VPN. The socket is **not** published through Caddy or the gateway's public IP.
+
 ## Other useful commands
 
 | Purpose | Command |
@@ -499,6 +562,9 @@ services:
 | Remove service parameters | `wireport service params remove -p https://demo.example.com:443 --param-value 'header_up X-Tenant-Hostname {http.request.host}'` |
 | List service parameters | `wireport service params list -p https://demo.example.com:443` |
 | List all published services | `wireport service list` |
+| List SERVER nodes | `wireport server list` |
+| Add a label to a SERVER | `wireport server label add 10.0.0.3 docker-socket-published` |
+| Remove a label from a SERVER | `wireport server label remove 10.0.0.3 docker-socket-published` |
 | Create more CLIENTs | `wireport client new` |
 | Add a workload SERVER | `wireport server up sshuser@140.120.110.10` |
 | Tear down a SERVER | `wireport server down sshuser@140.120.110.10` |
@@ -512,6 +578,7 @@ Refer to `wireport --help` for the full CLI reference.
 - All traffic is encrypted using WireGuard
 - Control traffic is encrypted (TLS)
 - HTTPS is configurable for secure web access to exposed services
+- The `docker-socket-published` label exposes the Docker API on a SERVER's **WireGuard IP only** (port 2375). Treat labeled servers as fully trusted Docker hosts for any VPN peer that can reach that address
 
 ## Troubleshooting
 
@@ -521,6 +588,9 @@ If you encounter issues:
 3. Check status of the WireGuard network inside the GATEWAY and SERVER wireport containers using `wg show` and other WireGuard commands
 4. Check pingability of private services from inside GATEWAY, SERVER and CLIENT nodes
 5. If a private service is not reachable, make sure the container is running and check its logs; check whether the target container (in case of the SERVER workloads) is attached to the `wireport-net` Docker network (wireport agent manages this automatically).
+6. **Declarative tunnels:** after changing `wireport.service.*` labels in your Docker Compose files, recreate the affected stack's containers, then allow up to ~30 seconds for the SERVER agent to reconcile. Check `docker logs wireport-server` on the SERVER machine for publish/unpublish messages.
+7. **Docker socket label:** after `wireport server label add … docker-socket-published`, wait for sync then verify with `docker -H tcp://<server-wg-ip>:2375 info` from a CLIENT on the VPN. Confirm socat is running: `docker exec wireport-server pgrep -x socat` (executed on the target SERVER node).
+8. **`server up` reports "Not joined yet" but container logs show success:** the bootstrap waiter checks for join config files inside the container. If join completed, the server is fine — inspect `docker logs wireport-server` and retry `wireport server list`. If server bootstrapping fails, tear down the failed server (`wireport server down ...`) and bootstrap it again.
 
 ## Tests for HTTP, TCP, UDP tunnelling
 

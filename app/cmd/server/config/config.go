@@ -75,6 +75,15 @@ type Configuration struct {
 	UpgradeServerScriptTemplatePath  string
 	NewClientScriptTemplatePath      string
 
+	PublishDockerSocketScriptTemplatePath   string
+	UnpublishDockerSocketScriptTemplatePath string
+
+	RunitServiceDir          string
+	RunitServiceDisabledDir  string
+	DockerSocketServiceName  string
+	DockerSocketTCPPort      string
+	DockerSocketUnixPath     string
+
 	DockerNetworkName   string
 	DockerNetworkDriver string
 
@@ -119,6 +128,15 @@ var Config = &Configuration{
 	UpgradeGatewayScriptTemplatePath: "scripts/upgrade/gateway.hbs",
 	UpgradeServerScriptTemplatePath:  "scripts/upgrade/server.hbs",
 	NewClientScriptTemplatePath:      "scripts/new/client.hbs",
+
+	PublishDockerSocketScriptTemplatePath:   "scripts/publish/docker-socket.hbs",
+	UnpublishDockerSocketScriptTemplatePath: "scripts/unpublish/docker-socket.hbs",
+
+	RunitServiceDir:          "/etc/service",
+	RunitServiceDisabledDir:  "/etc/service-disabled",
+	DockerSocketServiceName:  "socat-docker-socket",
+	DockerSocketTCPPort:      "2375",
+	DockerSocketUnixPath:     "/var/run/docker.sock",
 
 	DockerNetworkName:   "wireport-net",
 	DockerNetworkDriver: "bridge",

@@ -2,6 +2,8 @@ module wireport
 
 go 1.26.3
 
+toolchain go1.26.4
+
 require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/glebarez/sqlite v1.11.0
@@ -42,7 +44,6 @@ require (
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
