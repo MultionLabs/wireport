@@ -49,8 +49,8 @@
 - **Secure VPN tunneling** (WireGuard)
 - **Self-hosted** and **open-source**
 - **High performance** with a **low memory footprint**
-- Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels) (automatic publish/unpublish on SERVER nodes)
-- **[Deploy Docker workloads on remote servers from your laptop](#remote-docker-socket-access)** — point your laptop's Docker CLI or Compose at a SERVER over the private VPN and run containers as if the engine were local (no SSH, not exposed to the Internet)
+- Easy, declarative tunnel configuration via [**docker labels**](#tunnel-configuration-via-docker-labels) 
+- [Manage remote Docker workloads locally](#remote-docker-socket-access) — from your laptop, `docker` / `compose --context` over the VPN to manage containers as if they were local (no SSHing)
 - [Quick and easy start](#quick-start) in self-hosted mode in just **two commands** - no tinkering with docker/compose files
 
 | ![Ingress Proxy](assets/wireport-ingress-proxy-screenshot.png) | ![Hostname Resolution](assets/wireport-hostname-resolution-screenshot.png) |
